@@ -1,0 +1,4 @@
+node_modules/
+.stdb-data/
+dist/
+client/src/module_bindings/
