@@ -1,60 +1,82 @@
-# Design note
+# The Ledger of the Black Market
 
-Started 2026-10-24, on a sick day, for a player who likes Probably Stolen, Batomon and Slay the Spire,
-and cares about the game loop more than graphics. This note records the intent, so changes can be
-checked against it.
+*Found nailed to a damp wall somewhere below the third torch. The handwriting is a goblin's.
+The coffee stains are a dwarf's. The tiny bite marks are almost certainly the Grey Rat's.*
 
-## The pitch
+---
 
-Hire a rabble of dungeon misfits, merge them, and send them against the ghosts of other crews.
-Ten trophies before five lives run out. One run takes about 20 minutes.
+## Page 1: How this all started
 
-## Pillars
+It began on 24 October 2026, when a wanderer named Krishna caught a fever and asked for a game
+to play while the medicine did its slow work. They liked *Probably Stolen*, *Batomon* and
+*Slay the Spire*, and cared more about a good loop than shiny graphics.
 
-1. **Every turn is a small, real decision.** Spend or save, reroll or freeze, merge now or wait,
-   who stands in front. If a choice is obvious, it isn't a choice.
-2. **Rules you can read.** Every ability fits on one line, and it does exactly what it says.
-   Shop units show their tier; hovering anything explains it.
-3. **Battles are a payoff, not a chore.** They're automatic, short, and skippable (Instant mode).
-   The thinking happens in the shop.
-4. **Ghosts make it feel alive.** Every team you field haunts future runs. A fresh server is
-   seeded with bots so there's always someone to fight.
+So the Black Market opened. Hire a rabble of dungeon misfits, squash three of the same kind into
+one stronger misfit, and send them against the **ghosts** of crews who came before.
+Ten trophies before five lives run out. About twenty minutes a run, or one cup of tea.
 
-## Tribes (what each one is about)
+## Page 2: The four rules of the Market (do not eat this page)
 
-- **Beast:** brawlers. They grow when hurt or when friends fall. Easy to play.
-- **Undead:** they come back. Summons on faint, and they feed on death. Order matters.
-- **Fungus:** patience. Small growth every turn, so they reward keeping units. Currently the
-  strongest tribe in bot play; watch it.
-- **Goblin:** greed versus tempo (the Probably Stolen itch). Earn gold, and turn unspent gold into
-  stats. The tension is buying now versus hoarding for a Hoarder or Warlord.
-- **Arcane:** zaps before and during the fight. The Archmage re-triggers everyone's opening moves.
-- **Dwarf:** ward, a shield that absorbs damage first. Protects whoever stands behind.
+1. **Every turn is a small, real decision.** Spend or save. Reroll or freeze. Merge now or wait.
+   Who stands in front and takes the first punch. *If a choice is obvious, it isn't a choice,
+   it's a chore.*
+2. **Rules you can read.** Every ability fits on one line and does exactly what it says.
+   No fine print. (The fine print was eaten. See: rat.)
+3. **Battles are the payoff, not the work.** They run by themselves, they're short, and if you're
+   impatient there's an Instant button. The thinking happens in the shop.
+4. **Ghosts make the dungeon feel alive.** Every crew you field leaves a ghost behind to haunt
+   future runs. When the halls are empty, the Market hires bots to pretend.
 
-## Relics
+## Page 3: Who's for hire
 
-Picked on rounds 3, 6, 9 and 12, from three choices (the Slay the Spire beat). They should bend
-a build, not just add numbers. Open question: most are plain upgrades today; trade-offs like
-"+2 lives, but rerolls cost more" may be more interesting.
+| Tribe | Their whole deal | Warning label |
+|---|---|---|
+| 🐺 **Beast** | Brawlers. They get angrier when hurt or when a friend falls. | Easy to love, easy to play. |
+| 💀 **Undead** | They come back. Summons on death; they feed on everyone else's. | Order matters. Arrange your corpses carefully. |
+| 🍄 **Fungus** | Patience. They grow a little every single turn. | Currently the strongest tribe. The mushrooms know. We are watching them. |
+| 💰 **Goblin** | Greed versus tempo. Earn gold, and turn *unspent* gold into muscle. | Spend it now, or hoard it for the Warlord? This is the Probably Stolen itch. |
+| ✨ **Arcane** | Zap things before and during the fight. The Archmage makes everyone do their opening move twice. | Fragile. Stand them behind someone sturdy. |
+| ⛏️ **Dwarf** | Ward: a shield that soaks damage first. They protect whoever stands behind them. | Will lecture you about proper shield maintenance. |
 
-## Decisions so far
+## Page 4: Shiny things on the shelf
 
-- The server is the referee. Shop, randomness and battles all run in SpacetimeDB reducers;
-  the client only shows things and replays recorded battles.
-- One rules engine (`server/src/game/`) is shared by the server, the client and the sim.
-- Balance is checked with a headless bot league (`tools/sim.ts`). Bots are dumb, so read the
-  numbers as direction, not truth.
-- A draw costs nothing for either side, like Super Auto Pets. Revisit if stalling becomes a strategy.
+On rounds 3, 6, 9 and 12, three **relics** glint in the dark and you get to keep one, Slay the
+Spire style. A good relic should *bend* a build: Spore Pouch makes mushrooms grow twice as
+fast, and Sixth Seat gives you room for one more misfit.
 
-## Known rough edges
+*Merchant's grumble:* most relics today are plain upgrades. Trade-offs might be spicier, like
+"+2 lives, but rerolls cost more." To be decided over a stronger drink.
 
-- No undo. One misclick on Sell cost a front-line unit in the first playtest.
-- Difficulty against a thoughtful human is untested; early rounds are probably easy.
-- Bots are simple, so ghost opponents get interesting only as real runs pile up.
+## Page 5: Decisions the Market has made (and why)
 
-## Ideas parked for later
+- **The server is the referee.** The shop, the dice and every battle happen inside SpacetimeDB.
+  Your screen only shows what happened and replays the fights. Nobody gets to cheat, not even the rat.
+- **One rulebook for everyone.** The server, the game screen and the training simulator all read
+  the same rules (`server/src/game/`), so a tooltip can never lie.
+- **Bots train in the basement.** A headless league of dumb bots (`tools/sim.ts`) plays hundreds
+  of runs in seconds and reports who's too strong. They are very dumb. Read their numbers as
+  hints, not gospel.
+- **A draw costs nothing.** Both crews walk away embarrassed but alive, like in Super Auto Pets.
+  If someone learns to stall for draws, we revisit.
 
-- An in-game feedback button that saves a note, a screenshot and the exact run state.
-- Undo for the last shop action.
-- Friends' ghosts and live async PvP.
-- Smarter bots that play like a person with a few runs behind them.
+## Page 6: Known cracks in the walls
+
+- **No undo.** In the very first playtest, a click meant for an item sold the whole front line.
+  The front line has not forgiven us.
+- **Difficulty against a real human is untested.** The early rounds are probably a gentle stroll.
+- **The bots are simple.** Ghost opponents get truly interesting only once real runs pile up.
+
+## Page 7: Scribbled on the back
+
+Ideas for when the fever is gone:
+
+- A **"huh?" button** in the game that saves your note, a screenshot and the exact run, so the
+  Market can see exactly what went wrong.
+- **Undo** for the last shop action. (For the front line.)
+- **Friends' ghosts** and live async PvP. Your rabble against theirs.
+- **Smarter bots** that play like someone with a few runs and some opinions.
+
+---
+
+*Entries are added in order. Never tear out a page; cross things out instead, so we remember
+what we tried.*
