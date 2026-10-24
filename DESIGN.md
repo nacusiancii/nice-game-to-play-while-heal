@@ -78,5 +78,5 @@ Ideas for when the fever is gone:
 
 ---
 
-*Entries are added in order. Never tear out a page; cross things out instead, so we remember
-what we tried.*
+*The Ledger only tells how things stand today. When something changes, rewrite the page cleanly.
+Old pages aren't lost: the Archivist keeps every one of them (`git log -p DESIGN.md`).*
