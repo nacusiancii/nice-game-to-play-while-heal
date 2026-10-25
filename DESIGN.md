@@ -84,7 +84,8 @@ Dice or the Tome. So the Market changed its shelf:
 - **No undo. We live with our decisions.** A sale is a sale, like at any honest black market. Instead,
   the expensive mistakes are hard to make by accident: selling a levelled misfit, or one holding
   something, takes a second press (dragging it to Sell is deliberate enough), and so does swapping out
-  an item someone already holds. The front line that was sold in the first playtest is avenged.
+  an item someone already holds, or merging two units that hold different items (only the target's
+  item survives). The front line that was sold in the first playtest is avenged.
 - **The shelf stays put.** When you buy something, its spot on the shelf stays empty until the next
   reroll, so nothing slides under your hand and the number keys keep pointing where they did.
 - **The first two rounds are free.** Round 1 and 2 fights are coin flips between three random

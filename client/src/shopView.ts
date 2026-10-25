@@ -268,7 +268,11 @@ export class ShopView {
   doMove(from: number, to: number) {
     const r = this.run;
     const a = r.team[from], b = r.team[to];
-    if (a.kind && b.kind === a.kind) sfx.merge(); else sfx.click();
+    const merging = !!a.kind && b.kind === a.kind && a.xp < 5 && b.xp < 5;
+    // a merge keeps only the target's item, so losing the other one is worth a second press
+    if (merging && a.item && b.item && a.item !== b.item && !this.confirm(`merge:${from}:${to}`,
+      `Merging keeps ${ITEMS[b.item].name} and loses ${ITEMS[a.item].name}. Do that again to merge.`)) return;
+    if (merging) sfx.merge(); else sfx.click();
     api.move(from, to);
     this.render();
   }
