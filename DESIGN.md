@@ -67,21 +67,12 @@ fast, and Sixth Seat gives you room for one more misfit.
   Krishna was shopping. Twice. Now each one tinkers in a private cellar (`./sandbox`) with its own torches,
   its own coin and its own locks, and the shop upstairs can't even hear them. Their keys don't fit
   upstairs doors. Moving something upstairs is one deliberate trip, and Krishna holds the stairs.
-  The master key to the shop hangs on one hook only, `play.sh`'s (`~/.config/rabble-below/prod-cli.toml`);
-  a builder's everyday key (the default `spacetimedb-cli` login) is turned away at the door with a 403.
-  It only works if the everyday key is a different key: the hook was once taken down as useless because
-  both were still copies of the same one.
 - **The game narrates itself, once.** Every call to the server, screen change, battle beat, toast and
   sound is announced on one stream (`client/src/events.ts`). The complaints box (page 6) keeps the last
   few in words; `tools/feel`, which films a moment of the game frame by frame in a builder's cellar,
   writes them under its pictures. Two listeners, one story, so they can't disagree.
 - **A draw costs nothing.** Both crews walk away embarrassed but alive, like in Super Auto Pets.
   If someone learns to stall for draws, we revisit.
-- **The Ledger reads itself to every newcomer.** A Ledger nobody reads goes stale quietly, and a stale
-  Ledger lies with a straight face. So every new builder is handed this Ledger as it stands upstairs on
-  trunk, not the dusty copy on their own bench, with a note on how far the code has wandered since the
-  last entry. Before they leave, the Market asks them once: are these pages still true?
-  (`.claude/hooks/ledger.py`; run it with `check` to see the same report.)
 
 ## Page 6: The complaints box
 
