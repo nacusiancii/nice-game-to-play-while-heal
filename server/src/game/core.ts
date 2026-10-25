@@ -69,6 +69,10 @@ export const UNIT_COST = 3;
 export const REROLL_COST = 1;
 export const BASE_SLOTS = 5;
 export const RELIC_ROUNDS = [3, 6, 9, 12];
+// The first two rounds are coin flips between three random misfits, so losing them costs no life.
+export const lifeCost = (round: number) => (round <= 2 ? 0 : 1);
+// Hoarder and Warlord count unspent gold up to this much.
+export const HOARD_CAP = 10;
 
 export const emptyUnit = (): Unit => ({ uid: 0, kind: '', atk: 0, hp: 0, xp: 0, item: '' });
 

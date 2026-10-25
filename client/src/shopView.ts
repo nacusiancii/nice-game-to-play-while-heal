@@ -204,7 +204,7 @@ export class ShopView {
   }
 
   // ---------- interactions ----------
-  setSel(s: Sel) { this.sel = s; this.armed = null; this.render(); }
+  setSel(s: Sel) { this.sel = s; this.render(); }
 
   isArmed(key: string) { return !!this.armed && this.armed.key === key && Date.now() < this.armed.until; }
   // true if the action may go ahead now; otherwise arms it and says why

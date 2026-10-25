@@ -1,6 +1,6 @@
 // Run and shop rules. All functions mutate the given RunState and throw Error on invalid moves.
 import {
-  BASE_GOLD, REROLL_COST, RELIC_ROUNDS, START_LIVES, UNIT_COST, WINS_TO_VICTORY,
+  BASE_GOLD, HOARD_CAP, REROLL_COST, lifeCost, RELIC_ROUNDS, START_LIVES, UNIT_COST, WINS_TO_VICTORY,
   emptyUnit, levelOf, pick, sellValue, shopItemSlots, shopTier, shopUnitSlots, shuffle, teamSlots,
   type Rng, type RunState, type ShopSlot, type Unit,
 } from './core';
@@ -194,7 +194,7 @@ export function endTurn(st: RunState, rng: Rng) {
 // After a battle: score it, then open the next shop.
 export function afterBattle(st: RunState, rng: Rng, winner: 0 | 1 | -1) {
   if (winner === 0) st.wins++;
-  else if (winner === 1) st.lives--;
+  else if (winner === 1) st.lives -= lifeCost(st.round);
   if (st.wins >= WINS_TO_VICTORY) { st.status = 'won'; return; }
   if (st.lives <= 0) { st.status = 'lost'; return; }
   startTurn(st, rng);

@@ -1,6 +1,7 @@
 // Plays back a battle recorded by the server.
 import type { Fx, Frame, Snap } from '../../server/src/game/battle';
 import { RELICS } from '../../server/src/game/data';
+import { lifeCost } from '../../server/src/game/core';
 import type { Battle } from './module_bindings/types';
 import { floatAt as floatOver, h, img, sleep } from './dom';
 import { hearts, unitEl, unitInfo } from './pieces';
@@ -203,7 +204,7 @@ export function playBattle(root: HTMLElement, b: Battle, meta: BattleMeta, onDon
     const res = b.result;
     (res > 0 ? sfx.win : res < 0 ? sfx.lose : sfx.draw)();
     const title = res > 0 ? 'Victory!' : res < 0 ? 'Defeat' : 'Draw';
-    const sub = res > 0 ? 'Your rabble earns a trophy.' : res < 0 ? 'You lose a life.' : 'Nobody wins. Nobody loses.';
+    const sub = res > 0 ? 'Your rabble earns a trophy.' : res < 0 ? (lifeCost(b.round) ? 'You lose a life.' : 'Still warming up: no life lost.') : 'Nobody wins. Nobody loses.';
     const box = h('div', { class: `result ${res > 0 ? 'win' : res < 0 ? 'lose' : 'draw'}` },
       h('h2', null, title), h('p', null, sub),
       h('button', { class: 'btn primary', onclick: () => { cleanup(); onDone(); } }, 'Continue'));

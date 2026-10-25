@@ -36,7 +36,7 @@ Ten trophies before five lives run out. About twenty minutes a run, or one cup o
 | 🐺 **Beast** | Brawlers. They get angrier when hurt or when a friend falls. | Easy to love, easy to play. |
 | 💀 **Undead** | They come back. Summons on death; they feed on everyone else's. | Order matters. Arrange your corpses carefully. |
 | 🍄 **Fungus** | Patience. They grow a little every single turn. | The strongest tribe late, by design: the only one that grows for good. The Spore Puff was put on a diet (1/1) for growing too well too early. |
-| 💰 **Goblin** | Greed versus tempo. Earn gold, and turn *unspent* gold into muscle. | Spend it now, or hoard it for the Warlord? This is the Probably Stolen itch. |
+| 💰 **Goblin** | Greed versus tempo. Earn gold, and turn *unspent* gold into muscle. | Spend it now, or hoard it for the Warlord? This is the Probably Stolen itch. Hoarders count at most 10 gold: without a cap, two playtesters found that once the engine ran, hoarding everything was the only answer, and the itch died. |
 | ✨ **Arcane** | Zap things before and during the fight. The Archmage makes everyone do their opening move twice. | Fragile. Stand them behind someone sturdy. |
 | ⛏️ **Dwarf** | Ward: a shield that soaks damage first. They protect whoever stands behind them. | Will lecture you about proper shield maintenance. |
 
@@ -87,6 +87,10 @@ Dice or the Tome. So the Market changed its shelf:
   an item someone already holds. The front line that was sold in the first playtest is avenged.
 - **The shelf stays put.** When you buy something, its spot on the shelf stays empty until the next
   reroll, so nothing slides under your hand and the number keys keep pointing where they did.
+- **The first two rounds are free.** Round 1 and 2 fights are coin flips between three random
+  misfits, and losing a life to a coin flip before you've made a single real decision is just mean.
+  A loss there costs no life (and earns no trophy). Every playtester bled lives early; Super Auto Pets
+  eases you in the same way.
 - **A draw costs nothing.** Both crews walk away embarrassed but alive, like in Super Auto Pets.
   If someone learns to stall for draws, we revisit.
 
@@ -103,7 +107,11 @@ the "huh?"s about it stop coming.
 
 ## Page 7: Known cracks in the walls
 
-- **Difficulty against a real human is untested.** The early rounds are probably a gentle stroll.
+- **Difficulty against a real human is still untested.** Agent playtesters found the start harsh
+  (hence the free first rounds) and the late game fine. Nobody with a pulse has checked.
+- **Loaded Dice is still the relic nobody wants**, at least according to the Veteran, who rerolls by
+  habit rather than by plan. A human who hunts merges may disagree. The Lich also stopped selling
+  after the relic rework, and nobody knows why yet.
 - **The bots are simple.** Ghost opponents get truly interesting only once real runs pile up.
 
 ## Page 8: Scribbled on the back

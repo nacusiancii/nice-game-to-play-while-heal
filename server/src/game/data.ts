@@ -1,5 +1,6 @@
 // Every unit, item and relic in the game, with its rules.
 import type { Tribe, Unit, RunState, Rng } from './core';
+import { HOARD_CAP } from './core';
 import type { Battle, BU } from './battle';
 
 // Shop-side hooks get a small API over the run state.
@@ -52,8 +53,8 @@ export const UNITS: Record<string, UnitDef> = {
   },
   spore: {
     name: 'Spore Puff', tribe: 'Fungus', tier: 1, atk: 1, hp: 1, sprite: 'giant_spore',
-    text: L => `End turn: gain +${L} health.`,
-    endTurn: (s, u, L) => s.buff(u, 0, L),
+    text: L => `End turn: gain +${L === 3 ? 2 : 1} health.`,
+    endTurn: (s, u, L) => s.buff(u, 0, L === 3 ? 2 : 1),
   },
   skeleton: {
     name: 'Skeleton', tribe: 'Undead', tier: 1, atk: 2, hp: 1, sprite: 'skeleton_humanoid_small_new',
@@ -112,8 +113,8 @@ export const UNITS: Record<string, UnitDef> = {
   // ---------- Tier 3 ----------
   hoarder: {
     name: 'Hobgoblin Hoarder', tribe: 'Goblin', tier: 3, atk: 3, hp: 5, sprite: 'hobgoblin_new',
-    text: L => `Start of battle: gain +${L}/+${L} for every 2 unspent gold.`,
-    sob: (b, u, L) => { const n = Math.floor(b.gold(u.side) / 2); if (n) b.buff(u, n * L, n * L); },
+    text: L => `Start of battle: gain +${L}/+${L} for every 2 unspent gold (up to ${HOARD_CAP}).`,
+    sob: (b, u, L) => { const n = Math.floor(Math.min(HOARD_CAP, b.gold(u.side)) / 2); if (n) b.buff(u, n * L, n * L); },
   },
   necro: {
     name: 'Necromancer', tribe: 'Undead', tier: 3, atk: 2, hp: 4, sprite: 'necromancer_new',
@@ -186,9 +187,9 @@ export const UNITS: Record<string, UnitDef> = {
   // ---------- Tier 5 ----------
   warlord: {
     name: 'Orc Warlord', tribe: 'Goblin', tier: 5, atk: 6, hp: 7, sprite: 'orc_warlord',
-    text: L => `Start of battle: give all friends +${L}/+${L} for every 2 unspent gold.`,
+    text: L => `Start of battle: give all friends +${L}/+${L} for every 2 unspent gold (up to ${HOARD_CAP}).`,
     sob: (b, u, L) => {
-      const n = Math.floor(b.gold(u.side) / 2);
+      const n = Math.floor(Math.min(HOARD_CAP, b.gold(u.side)) / 2);
       if (n) for (const f of b.friends(u, true)) b.buff(f, n * L, n * L, u);
     },
   },
