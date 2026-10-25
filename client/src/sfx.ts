@@ -1,4 +1,5 @@
 // Tiny synthesized sound effects. No audio files.
+import { emit } from './events';
 let ctx: AudioContext | null = null;
 let muted = localStorage.getItem('rabble-below/muted') === '1';
 
@@ -49,7 +50,7 @@ function noise(dur: number, vol = 0.08, delay = 0, lowpass = 1200) {
   src.start(t);
 }
 
-export const sfx = {
+const sounds = {
   click: () => tone(660, 0.05, 'square', 0.03),
   buy: () => { tone(880, 0.06, 'square', 0.04); tone(1320, 0.08, 'square', 0.04, undefined, 0.05); },
   sell: () => { tone(1200, 0.05, 'triangle', 0.05); tone(900, 0.08, 'triangle', 0.05, undefined, 0.05); },
@@ -70,3 +71,6 @@ export const sfx = {
   lose: () => [392, 330, 262, 196].forEach((f, i) => tone(f, 0.22, 'triangle', 0.06, undefined, i * 0.15)),
   draw: () => [440, 440].forEach((f, i) => tone(f, 0.15, 'triangle', 0.05, undefined, i * 0.18)),
 };
+
+// every sound is announced as an event, so tools/feel knows what you would hear and when
+export const sfx = Object.fromEntries(Object.entries(sounds).map(([name, play]) => [name, () => { emit('sfx', name); play(); }])) as typeof sounds;

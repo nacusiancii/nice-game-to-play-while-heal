@@ -60,6 +60,10 @@ fast, and Sixth Seat gives you room for one more misfit.
   Krishna was shopping. Twice. Now each one tinkers in a private cellar (`./sandbox`) with its own torches,
   its own coin and its own locks, and the shop upstairs can't even hear them. Their keys don't fit
   upstairs doors. Moving something upstairs is one deliberate trip, and Krishna holds the stairs.
+- **The game narrates itself, once.** Every call to the server, screen change, battle beat, toast and
+  sound is announced on one stream (`client/src/events.ts`). The complaints box (page 6) keeps the last
+  few in words; `tools/feel`, which films a moment of the game frame by frame in a builder's cellar,
+  writes them under its pictures. Two listeners, one story, so they can't disagree.
 - **A draw costs nothing.** Both crews walk away embarrassed but alive, like in Super Auto Pets.
   If someone learns to stall for draws, we revisit.
 - **The Ledger reads itself to every newcomer.** A Ledger nobody reads goes stale quietly, and a stale

@@ -19,6 +19,8 @@ export interface Store {
 }
 
 export const store: Store = { status: 'connecting', error: '', me: '', battles: [], hall: [] };
+// tools/feel scenes read the live store (__store.run.gold) instead of scraping the page
+if ('__feel' in globalThis) Object.assign(globalThis, { __store: store });
 
 type Listener = (reason: string) => void;
 const listeners = new Set<Listener>();
@@ -87,7 +89,7 @@ export const setReadOnly = (why: string) => { readOnly = why; };
 const call = (what: string, p: () => Promise<void> | undefined) => {
   announce('call', what);
   if (readOnly) { onError(readOnly); return; }
-  return p()?.catch(e => { const m = cleanErr(e); announce('rejected', m); onError(m); });
+  return p()?.then(() => announce('done', what), e => { const m = cleanErr(e); announce('rejected', m); onError(m); });
 };
 function cleanErr(e: unknown) {
   const s = e instanceof Error ? e.message : String(e);

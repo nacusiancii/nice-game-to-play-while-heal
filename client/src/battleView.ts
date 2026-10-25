@@ -5,6 +5,7 @@ import type { Battle } from './module_bindings/types';
 import { floatAt, h, img, sleep } from './dom';
 import { hearts, unitEl, unitInfo } from './pieces';
 import { sfx } from './sfx';
+import { emit } from './events';
 
 const SPEED_KEY = 'rabble-below/speed';
 // 1x, 2x, 4x, or 0 = instant (no replay at all)
@@ -176,6 +177,7 @@ export function playBattle(root: HTMLElement, b: Battle, meta: BattleMeta, onDon
   function showResult() {
     if (finished) return;
     finished = true;
+    emit('result', b.result > 0 ? 'win' : b.result < 0 ? 'loss' : 'draw');
     const res = b.result;
     (res > 0 ? sfx.win : res < 0 ? sfx.lose : sfx.draw)();
     const title = res > 0 ? 'Victory!' : res < 0 ? 'Defeat' : 'Draw';
@@ -211,8 +213,9 @@ export function playBattle(root: HTMLElement, b: Battle, meta: BattleMeta, onDon
       i0++;
     }
     for (let i = i0; i < frames.length; i++) {
-      if (skipping) { battleNow.frame = frames.length - 1; layout(frames[frames.length - 1]); break; }
+      if (skipping) { emit('skip', i); battleNow.frame = frames.length - 1; layout(frames[frames.length - 1]); break; }
       battleNow.frame = i;
+      emit('beat', { i: i + 1, n: frames.length, fx: frames[i].fx });
       const f = frames[i];
       layout(f);
       applyFx(f.fx);
