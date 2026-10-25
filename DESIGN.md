@@ -23,7 +23,9 @@ Ten trophies before five lives run out. About twenty minutes a run, or one cup o
 2. **Rules you can read.** Every ability fits on one line and does exactly what it says.
    No fine print. (The fine print was eaten. See: rat.)
 3. **Battles are the payoff, not the work.** They run by themselves, they're short, and if you're
-   impatient there's an Instant button. The thinking happens in the shop.
+   impatient there's an Instant button. The thinking happens in the shop. Small things happen together:
+   a fallen misfit's last trick lands in the same beat as its fall, and a pile of little buffs lands as
+   one. The punches each get their own moment.
 4. **Ghosts make the dungeon feel alive.** Every crew you field leaves a ghost behind to haunt
    future runs. When the halls are empty, the Market hires bots to pretend.
 
@@ -33,7 +35,7 @@ Ten trophies before five lives run out. About twenty minutes a run, or one cup o
 |---|---|---|
 | 🐺 **Beast** | Brawlers. They get angrier when hurt or when a friend falls. | Easy to love, easy to play. |
 | 💀 **Undead** | They come back. Summons on death; they feed on everyone else's. | Order matters. Arrange your corpses carefully. |
-| 🍄 **Fungus** | Patience. They grow a little every single turn. | Currently the strongest tribe. The mushrooms know. We are watching them. |
+| 🍄 **Fungus** | Patience. They grow a little every single turn. | The strongest tribe late, by design: the only one that grows for good. The Spore Puff was put on a diet (1/1) for growing too well too early. |
 | 💰 **Goblin** | Greed versus tempo. Earn gold, and turn *unspent* gold into muscle. | Spend it now, or hoard it for the Warlord? This is the Probably Stolen itch. |
 | ✨ **Arcane** | Zap things before and during the fight. The Archmage makes everyone do their opening move twice. | Fragile. Stand them behind someone sturdy. |
 | ⛏️ **Dwarf** | Ward: a shield that soaks damage first. They protect whoever stands behind them. | Will lecture you about proper shield maintenance. |
@@ -44,8 +46,16 @@ On rounds 3, 6, 9 and 12, three **relics** glint in the dark and you get to keep
 Spire style. A good relic should *bend* a build: Spore Pouch makes mushrooms grow twice as
 fast, and Sixth Seat gives you room for one more misfit.
 
-*Merchant's grumble:* most relics today are plain upgrades. Trade-offs might be spicier, like
-"+2 lives, but rerolls cost more." To be decided over a stronger drink.
+A relic pick should be a real dilemma, not a reflex. When the Veteran first looked, not one of
+209 relic picks was a dilemma: everybody grabbed Troll Heart's two lives, and nobody touched the
+Dice or the Tome. So the Market changed its shelf:
+
+- **Strong things cost something.** Troll Heart still gives two lives, but every reroll after that
+  costs 2 gold. (The drink was strong enough.)
+- **Tribe relics only show up for that tribe.** Spore Pouch needs a Fungus on the team, Grave Lantern
+  something that summons, Tome of Echoes an Arcane. An offer you can't use is no offer at all.
+- **Small relics bend, not just add.** Loaded Dice's free first reroll can reach a tier higher, which
+  is a different game from "one gold off".
 
 ## Page 5: Decisions the Market has made (and why)
 
@@ -71,6 +81,12 @@ fast, and Sixth Seat gives you room for one more misfit.
   sound is announced on one stream (`client/src/events.ts`). The complaints box (page 6) keeps the last
   few in words; `tools/feel`, which films a moment of the game frame by frame in a builder's cellar,
   writes them under its pictures. Two listeners, one story, so they can't disagree.
+- **No undo. We live with our decisions.** A sale is a sale, like at any honest black market. Instead,
+  the expensive mistakes are hard to make by accident: selling a levelled misfit, or one holding
+  something, takes a second press (dragging it to Sell is deliberate enough), and so does swapping out
+  an item someone already holds. The front line that was sold in the first playtest is avenged.
+- **The shelf stays put.** When you buy something, its spot on the shelf stays empty until the next
+  reroll, so nothing slides under your hand and the number keys keep pointing where they did.
 - **A draw costs nothing.** Both crews walk away embarrassed but alive, like in Super Auto Pets.
   If someone learns to stall for draws, we revisit.
 
@@ -87,8 +103,6 @@ the "huh?"s about it stop coming.
 
 ## Page 7: Known cracks in the walls
 
-- **No undo.** In the very first playtest, a click meant for an item sold the whole front line.
-  The front line has not forgiven us.
 - **Difficulty against a real human is untested.** The early rounds are probably a gentle stroll.
 - **The bots are simple.** Ghost opponents get truly interesting only once real runs pile up.
 
@@ -96,7 +110,6 @@ the "huh?"s about it stop coming.
 
 Ideas for when the fever is gone:
 
-- **Undo** for the last shop action. (For the front line.)
 - **Friends' ghosts** and live async PvP. Your rabble against theirs.
 
 ---

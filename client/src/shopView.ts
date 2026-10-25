@@ -1,13 +1,15 @@
 // The den: your team, the shop, and all buying/selling/arranging.
-import { REROLL_COST, UNIT_COST, WINS_TO_VICTORY, levelOf, sellValue, shopTier } from '../../server/src/game/core';
+import { UNIT_COST, WINS_TO_VICTORY, levelOf, sellValue, shopTier } from '../../server/src/game/core';
 import { ITEMS, RELICS, UNITS } from '../../server/src/game/data';
-import { itemCost } from '../../server/src/game/shop';
+import { itemCost, rerollCost } from '../../server/src/game/shop';
 import type { Run } from './module_bindings/types';
 import { api, store } from './net';
 import { floatAt, h, img, toast } from './dom';
 import { TRIBE_BLURB, hearts, itemEl, itemInfo, relicInfo, tribeTag, unitEl, unitInfo } from './pieces';
 import { isMuted, sfx, toggleMute } from './sfx';
 import { cycleSpeed, getSpeed, speedLabel } from './battleView';
+
+const ordinal = (n: number) => `${n}${['th', 'st', 'nd', 'rd'][n % 10 > 3 || (n % 100 >= 11 && n % 100 <= 13) ? 0 : n % 10]}`;
 
 type Sel = { from: 'shop' | 'team'; idx: number } | null;
 
@@ -74,15 +76,15 @@ export class ShopView {
 
     const selShop = this.sel?.from === 'shop' ? r.shop[this.sel.idx] : undefined;
     const selTeam = this.sel?.from === 'team' ? r.team[this.sel.idx] : undefined;
-    const freeReroll = r.rerolls === 0 && r.relics.includes('dice');
+    const rc = rerollCost(r);
     const sure = selTeam?.kind && this.isArmed(`sell:${this.sel!.idx}`);
     const sellBtn = h('button', {
       class: `btn sell${sure ? ' sure' : ''}`, 'data-drop': 'sell', disabled: !selTeam?.kind && !this.dragging,
       onclick: () => this.sellSelected(),
     }, selTeam?.kind ? `${sure ? 'Really sell' : 'Sell'} ${UNITS[selTeam.kind].name} +${sellValue(selTeam)}g${sure ? '?' : ''}` : 'Sell', h('span', { class: 'kbd' }, 'S'));
     const controls = h('div', { class: 'controls' },
-      h('button', { class: 'btn gold', onclick: () => this.reroll(), disabled: !freeReroll && r.gold < REROLL_COST },
-        freeReroll ? 'Reroll (free)' : `Reroll ${REROLL_COST}g`, h('span', { class: 'kbd' }, 'R')),
+      h('button', { class: 'btn gold', onclick: () => this.reroll(), disabled: r.gold < rc },
+        rc ? `Reroll ${rc}g` : 'Reroll (free)', h('span', { class: 'kbd' }, 'R')),
       h('button', { class: 'btn ice', onclick: () => this.freezeSelected(), disabled: !selShop?.kind },
         selShop?.frozen ? 'Unfreeze' : 'Freeze', h('span', { class: 'kbd' }, 'F')),
       sellBtn,
@@ -116,7 +118,8 @@ export class ShopView {
     if (u.kind) {
       const el = unitEl({ ...u }, true);
       slot.append(el);
-      this.hoverable(slot, () => unitInfo(u.kind, u.xp, `sells for ${sellValue(u)}g`));
+      const place = r.team.slice(0, i).filter(x => x.kind).length + 1;
+      this.hoverable(slot, () => unitInfo(u.kind, u.xp, `fights ${ordinal(place)} · sells for ${sellValue(u)}g`));
       const held = el.querySelector<HTMLElement>('.held');
       if (held && u.item) this.hoverable(held, () => itemInfo(u.item, `held by ${UNITS[u.kind].name}, can't be sold on its own`));
       this.draggable(el, { from: 'team', idx: i }, UNITS[u.kind].sprite);
@@ -292,7 +295,7 @@ export class ShopView {
 
   reroll() {
     const r = this.run;
-    if (r.gold < REROLL_COST && !(r.rerolls === 0 && r.relics.includes('dice'))) { sfx.error(); return; }
+    if (r.gold < rerollCost(r)) { sfx.error(); return; }
     sfx.reroll();
     if (this.sel?.from === 'shop') this.sel = null;
     api.reroll();

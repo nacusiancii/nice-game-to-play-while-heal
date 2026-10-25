@@ -4,7 +4,7 @@ import {
   emptyUnit, levelOf, pick, sellValue, shopItemSlots, shopTier, shopUnitSlots, shuffle, teamSlots,
   type Rng, type RunState, type ShopSlot, type Unit,
 } from './core';
-import { ITEMS, ITEM_COST, ITEM_KINDS, RELIC_KINDS, UNITS, UNIT_KINDS, type ShopApi } from './data';
+import { ITEMS, ITEM_COST, ITEM_KINDS, RELICS, RELIC_KINDS, UNITS, UNIT_KINDS, type ShopApi } from './data';
 
 const CAP = 99;
 
@@ -20,6 +20,10 @@ export function api(st: RunState, rng: Rng): ShopApi {
 }
 
 export const itemCost = (st: { relics: readonly string[] }) => ITEM_COST - (st.relics.includes('bag') ? 1 : 0);
+// Loaded Dice: the first reroll each turn is free and reaches a tier higher. Troll Heart makes rerolls dearer.
+const diceRoll = (st: { relics: readonly string[]; rerolls: number }) => st.relics.includes('dice') && st.rerolls === 0;
+export const rerollCost = (st: { relics: readonly string[]; rerolls: number }) =>
+  diceRoll(st) ? 0 : REROLL_COST + (st.relics.includes('heart') ? 1 : 0);
 
 function rollUnit(rng: Rng, tier: number): ShopSlot {
   const kind = pick(rng, UNIT_KINDS.filter(k => UNITS[k].tier <= tier));
@@ -31,8 +35,8 @@ function rollItem(rng: Rng, tier: number): ShopSlot {
 }
 
 // Refill the shop: frozen slots stay, everything else is re-rolled.
-export function rollShop(st: RunState, rng: Rng) {
-  const tier = shopTier(st.round);
+export function rollShop(st: RunState, rng: Rng, tierUp = 0) {
+  const tier = Math.min(5, shopTier(st.round) + tierUp);
   const frozenUnits = st.shop.filter(s => s.kind && s.frozen && !s.isItem);
   const frozenItems = st.shop.filter(s => s.kind && s.frozen && s.isItem);
   const units: ShopSlot[] = [...frozenUnits];
@@ -150,13 +154,11 @@ export function move(st: RunState, rng: Rng, from: number, to: number) {
 
 export function reroll(st: RunState, rng: Rng) {
   assertShop(st);
-  const free = st.rerolls === 0 && st.relics.includes('dice');
-  if (!free) {
-    if (st.gold < REROLL_COST) throw new Error('Not enough gold');
-    st.gold -= REROLL_COST;
-  }
+  const cost = rerollCost(st), lucky = diceRoll(st);
+  if (st.gold < cost) throw new Error('Not enough gold');
+  st.gold -= cost;
   st.rerolls++;
-  rollShop(st, rng);
+  rollShop(st, rng, lucky ? 1 : 0);
 }
 
 export function toggleFreeze(st: RunState, shopIdx: number) {
@@ -201,7 +203,7 @@ export function afterBattle(st: RunState, rng: Rng, winner: 0 | 1 | -1) {
 export function startTurn(st: RunState, rng: Rng) {
   const carried = st.relics.includes('piggy') ? Math.min(5, st.gold) : 0;
   st.round++;
-  st.gold = BASE_GOLD + carried + st.bonusGold + (st.relics.includes('ledger') ? 1 : 0);
+  st.gold = BASE_GOLD + carried + st.bonusGold + (st.relics.includes('ledger') ? 2 : 0);
   st.bonusGold = 0;
   st.rerolls = 0;
   const sa = api(st, rng);
@@ -212,6 +214,6 @@ export function startTurn(st: RunState, rng: Rng) {
   }
   rollShop(st, rng);
   if (RELIC_ROUNDS.includes(st.round)) {
-    st.relicChoices = shuffle(rng, RELIC_KINDS.filter(r => !st.relics.includes(r))).slice(0, 3);
+    st.relicChoices = shuffle(rng, RELIC_KINDS.filter(r => !st.relics.includes(r) && (RELICS[r].fits?.(st.team) ?? true))).slice(0, 3);
   }
 }

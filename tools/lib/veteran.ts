@@ -3,9 +3,9 @@
 // It knows nothing about any particular unit. For every choice it tries each option on a copy of the
 // run and fights the result against a bench of likely opponents. Whatever wins most, it does.
 // That makes it slow-ish but honest: change a number in data.ts and its judgement changes with it.
-import { REROLL_COST, UNIT_COST, levelOf, shopTier, type Rng, type RunState } from '../../server/src/game/core';
+import { UNIT_COST, levelOf, shopTier, type Rng, type RunState } from '../../server/src/game/core';
 import { ITEMS, UNITS } from '../../server/src/game/data';
-import { afterBattle, buy, newRun, chooseRelic, endTurn, itemCost, move, reroll, sell, toggleFreeze } from '../../server/src/game/shop';
+import { afterBattle, buy, newRun, chooseRelic, endTurn, itemCost, move, reroll, rerollCost, sell, toggleFreeze } from '../../server/src/game/shop';
 import { botTurn, randomStyle } from '../../server/src/game/bot';
 import { makeBench, mean, pairedSE, score, scores, type Bench } from './judge';
 import { Pool, ghostOf, quickFight, sideOf, type Ghost } from './pool';
@@ -211,8 +211,7 @@ export function veteranTurn(st: RunState, rng: Rng, pool: Pool, o: VeteranOpts =
       continue;
     }
     // Nothing on the shelf beats keeping the gold. Is a reroll worth a coin?
-    const free = st.rerolls === 0 && st.relics.includes('dice');
-    if (rerolls >= o.maxRerolls || (!free && st.gold < REROLL_COST + Math.min(UNIT_COST, itemCost(st)))) break;
+    if (rerolls >= o.maxRerolls || st.gold < rerollCost(st) + Math.min(UNIT_COST, itemCost(st))) break;
     // Sample a few rerolls and pick the best buy in each on the first k opponents. Then judge "keep" and
     // those picks on the other opponents only: the best of many noisy guesses always looks too good.
     const held = (x: RunState) => mean(scores(x, bench).slice(o.k));
