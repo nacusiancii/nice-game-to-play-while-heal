@@ -7,7 +7,13 @@ cd "$(dirname "$0")"
 DB=rabble-below
 PORT=${PORT:-5173}
 export GAME_URL="http://127.0.0.1:$PORT" # replay links in playtest sessions
-stdb() { mise exec -- spacetimedb-cli "$@"; }
+# The identity that owns this game lives in its own config, so the default CLI identity (the one agents
+# use) gets 403 if it tries to publish over it. Without that file, fall back to the default config.
+PROD_CFG="$HOME/.config/rabble-below/prod-cli.toml"
+stdb() {
+  if [ -f "$PROD_CFG" ]; then mise exec -- spacetimedb-cli --config-path "$PROD_CFG" "$@"
+  else mise exec -- spacetimedb-cli "$@"; fi
+}
 
 if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
   echo "This checkout is a worktree. play.sh runs Krishna's game from the main checkout only."

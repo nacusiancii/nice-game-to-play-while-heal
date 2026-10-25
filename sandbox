@@ -15,7 +15,10 @@ const ROOT = __dirname;
 const DB = 'rabble-below';
 const PROD_PORTS = [3000, 5173];
 // The default CLI identity owns Krishna's game. Sandbox tokens carry it, so a copy of his data is owned here too.
-const OWNER_CFG = path.join(os.homedir(), '.config/spacetime/cli.toml');
+// The identity that owns Krishna's game. Sandboxes mint tokens for it, signed with their own key, so a copy of
+// his data is theirs to change while the token stays useless against :3000.
+const OWNER_CFG = [path.join(os.homedir(), '.config/rabble-below/prod-cli.toml'), path.join(os.homedir(), '.config/spacetime/cli.toml')]
+  .find(f => fs.existsSync(f));
 
 const argv = process.argv.slice(2);
 const flag = f => { const i = argv.indexOf(f); return i >= 0 && argv.splice(i, 1).length > 0; };
@@ -55,7 +58,7 @@ function cli(args, o) {
 
 const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
 const state = () => readJson(F.state, {});
-const saveState = s => fs.writeFileSync(F.state, JSON.stringify(s, null, 2));
+const saveState = s => { fs.mkdirSync(DIR, { recursive: true }); fs.writeFileSync(F.state, JSON.stringify(s, null, 2)); };
 const cmdline = pid => { try { return fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0'); } catch { return null; } };
 // A pid only counts as ours if it is still running with our directory in its command line.
 const alive = (pid, needle) => !!pid && !!cmdline(pid)?.some(a => a.includes(needle));
@@ -89,7 +92,7 @@ function ensureKeys() {
   fs.writeFileSync(path.join(F.keys, 'id_ecdsa.pub'), publicKey);
 }
 function ownerClaims() {
-  const tok = fs.existsSync(OWNER_CFG) && fs.readFileSync(OWNER_CFG, 'utf8').match(/spacetimedb_token\s*=\s*"([^"]+)"/)?.[1];
+  const tok = OWNER_CFG && fs.readFileSync(OWNER_CFG, 'utf8').match(/spacetimedb_token\s*=\s*"([^"]+)"/)?.[1];
   if (!tok) return null;
   const { iss, sub, hex_identity, aud } = JSON.parse(Buffer.from(tok.split('.')[1], 'base64url'));
   return { iss, sub, hex_identity, aud };
