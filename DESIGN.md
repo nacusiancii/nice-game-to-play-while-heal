@@ -56,6 +56,10 @@ fast, and Sixth Seat gives you room for one more misfit.
 - **Bots train in the basement.** A headless league of dumb bots (`tools/sim.ts`) plays hundreds
   of runs in seconds and reports who's too strong. They are very dumb. Read their numbers as
   hints, not gospel.
+- **Every apprentice gets their own cellar.** The Market's builders once knocked over the counter while
+  Krishna was shopping. Twice. Now each one tinkers in a private cellar (`./sandbox`) with its own torches,
+  its own coin and its own locks, and the shop upstairs can't even hear them. Their keys don't fit
+  upstairs doors. Moving something upstairs is one deliberate trip, and Krishna holds the stairs.
 - **A draw costs nothing.** Both crews walk away embarrassed but alive, like in Super Auto Pets.
   If someone learns to stall for draws, we revisit.
 - **The Ledger reads itself to every newcomer.** A Ledger nobody reads goes stale quietly, and a stale

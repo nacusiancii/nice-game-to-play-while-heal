@@ -1,0 +1,383 @@
+#!/usr/bin/env node
+// sandbox: a private copy of Rabble Below for agents to break, restart and reset freely.
+//
+// Each sandbox lives in .sandbox/<name>/ inside its checkout and has its own SpacetimeDB process, data,
+// ports, client build and signing key. Tokens are minted with that key, so they are worthless against
+// Krishna's game on :3000, and Krishna's tokens are worthless here. Run `./sandbox help` for commands.
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const cp = require('child_process');
+const crypto = require('crypto');
+const os = require('os');
+
+const ROOT = __dirname;
+const DB = 'rabble-below';
+const PROD_PORTS = [3000, 5173];
+const PROD_CFG = path.join(os.homedir(), '.config/rabble-below/prod-cli.toml');
+const DEFAULT_CFG = path.join(os.homedir(), '.config/spacetime/cli.toml');
+
+const argv = process.argv.slice(2);
+const flag = f => { const i = argv.indexOf(f); return i >= 0 && argv.splice(i, 1).length > 0; };
+const opt = f => { const i = argv.indexOf(f); return i >= 0 ? argv.splice(i, 2)[1] : undefined; };
+const NAME = opt('-n') ?? process.env.SANDBOX ?? 'default';
+if (!/^[a-z0-9-]+$/.test(NAME)) die(`sandbox names are lowercase letters, digits and dashes (got "${NAME}")`);
+const DIR = path.join(ROOT, '.sandbox', NAME);
+const ME = NAME === 'default' ? './sandbox' : `./sandbox -n ${NAME}`; // how to address this sandbox in hints
+const F = {
+  data: path.join(DIR, 'data'), keys: path.join(DIR, 'keys'), cfg: path.join(DIR, 'cli.toml'),
+  state: path.join(DIR, 'state.json'), dist: path.join(DIR, 'dist'), snaps: path.join(DIR, 'snapshots'),
+  serverLog: path.join(DIR, 'server.log'), webLog: path.join(DIR, 'web.log'),
+};
+
+// ---------- small helpers ----------
+function die(msg) { console.error(`sandbox: ${msg}`); process.exit(1); }
+const say = msg => console.log(msg);
+function run(cmd, args, { cwd = ROOT, env, quiet = false, check = true } = {}) {
+  const r = cp.spawnSync(cmd, args, { cwd, env: { ...process.env, ...env }, encoding: 'utf8', stdio: quiet ? 'pipe' : 'inherit' });
+  if (check && r.status !== 0) {
+    if (quiet) process.stderr.write((r.stdout || '') + (r.stderr || ''));
+    die(`\`${path.basename(cmd)} ${args.slice(0, 3).join(' ')}…\` failed`);
+  }
+  return r;
+}
+let cliBin;
+function stdbBin() {
+  if (cliBin) return cliBin;
+  run('mise', ['install', '--quiet'], { quiet: true, check: false });
+  cliBin = run('mise', ['which', 'spacetimedb-cli'], { quiet: true }).stdout.trim();
+  return cliBin;
+}
+// Every CLI call goes through the sandbox's own config, where the nickname "local" means this sandbox.
+const cli = (args, o) => run(stdbBin(), ['--config-path', F.cfg, ...args], o);
+
+const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
+const state = () => readJson(F.state, {});
+const saveState = s => fs.writeFileSync(F.state, JSON.stringify(s, null, 2));
+const cmdline = pid => { try { return fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0'); } catch { return null; } };
+// A pid only counts as ours if it is still running with our directory in its command line.
+const alive = (pid, needle) => !!pid && !!cmdline(pid)?.some(a => a.includes(needle));
+const sleep = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+const ping = port => run('curl', ['-s', '-o', '/dev/null', '-m', '1', `http://127.0.0.1:${port}/v1/ping`], { quiet: true, check: false }).status === 0;
+const listening = () => new Set(run('ss', ['-Hltn'], { quiet: true }).stdout.split('\n')
+  .map(l => +(l.split(/\s+/)[3] || '').split(':').pop()).filter(Boolean));
+function ago(ms) {
+  if (ms == null) return '-';
+  const s = Math.round((Date.now() - ms) / 1000);
+  return s < 90 ? `${s}s ago` : s < 5400 ? `${Math.round(s / 60)}m ago` : s < 129600 ? `${Math.round(s / 3600)}h ago` : `${Math.round(s / 86400)}d ago`;
+}
+function rmrf(p) { fs.rmSync(p, { recursive: true, force: true }); }
+function copyData(from, to) {
+  rmrf(to);
+  run('cp', ['-a', from, to], { quiet: true });
+  rmrf(path.join(to, 'spacetime.pid'));
+}
+
+// ---------- checkouts, prod and other sandboxes ----------
+function checkouts() {
+  const out = run('git', ['worktree', 'list', '--porcelain'], { quiet: true }).stdout;
+  return out.trim().split('\n\n').map((b, i) => ({
+    path: b.match(/^worktree (.*)$/m)[1],
+    branch: (b.match(/^branch refs\/heads\/(.*)$/m) || [, '(detached)'])[1],
+    main: i === 0,
+  }));
+}
+const prodDir = () => path.join(checkouts()[0].path, '.stdb-data');
+function allSandboxes() {
+  const list = [];
+  for (const c of checkouts()) {
+    const base = path.join(c.path, '.sandbox');
+    for (const n of fs.existsSync(base) ? fs.readdirSync(base) : []) {
+      const dir = path.join(base, n);
+      if (fs.existsSync(path.join(dir, 'state.json'))) list.push({ checkout: c, name: n, dir, state: readJson(path.join(dir, 'state.json'), {}) });
+    }
+  }
+  return list;
+}
+function lastWrite(dataDir) {
+  let t = null;
+  const reps = path.join(dataDir, 'replicas');
+  for (const r of fs.existsSync(reps) ? fs.readdirSync(reps) : []) {
+    const clog = path.join(reps, r, 'clog');
+    for (const f of fs.existsSync(clog) ? fs.readdirSync(clog) : []) t = Math.max(t ?? 0, fs.statSync(path.join(clog, f)).mtimeMs);
+  }
+  return t;
+}
+const clients = port => run('ss', ['-Htn', 'state', 'established', `( sport = :${port} )`], { quiet: true }).stdout.split('\n').filter(Boolean).length;
+function rssMb(pids) {
+  let kb = 0;
+  for (const pid of pids) { try { kb += +fs.readFileSync(`/proc/${pid}/status`, 'utf8').match(/VmRSS:\s+(\d+)/)[1]; } catch {} }
+  return Math.round(kb / 1024);
+}
+
+// ---------- keys and tokens ----------
+// Sandbox servers verify tokens with their own key. We mint a token carrying the prod owner's identity
+// but signed with that key: it owns everything here (including a copy of Krishna's data) and nothing on :3000.
+function ensureKeys() {
+  if (fs.existsSync(path.join(F.keys, 'id_ecdsa'))) return;
+  fs.mkdirSync(F.keys, { recursive: true, mode: 0o700 });
+  const { privateKey, publicKey } = crypto.generateKeyPairSync('ec', {
+    namedCurve: 'prime256v1',
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+  });
+  fs.writeFileSync(path.join(F.keys, 'id_ecdsa'), privateKey, { mode: 0o600 });
+  fs.writeFileSync(path.join(F.keys, 'id_ecdsa.pub'), publicKey);
+}
+function ownerClaims() {
+  const f = fs.existsSync(PROD_CFG) ? PROD_CFG : DEFAULT_CFG;
+  const tok = fs.existsSync(f) && fs.readFileSync(f, 'utf8').match(/spacetimedb_token\s*=\s*"([^"]+)"/)?.[1];
+  if (!tok) return null;
+  const { iss, sub, hex_identity, aud } = JSON.parse(Buffer.from(tok.split('.')[1], 'base64url'));
+  return { iss, sub, hex_identity, aud };
+}
+function mint(claims) {
+  const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const body = `${b64({ typ: 'JWT', alg: 'ES256' })}.${b64({ ...claims, iat: Math.floor(Date.now() / 1000) })}`;
+  const key = fs.readFileSync(path.join(F.keys, 'id_ecdsa'));
+  return `${body}.${crypto.sign('sha256', Buffer.from(body), { key, dsaEncoding: 'ieee-p1363' }).toString('base64url')}`;
+}
+function writeCfg(port, token) {
+  fs.writeFileSync(F.cfg, [
+    '# Written by ./sandbox. "local" here means this sandbox, never Krishna\'s game on :3000.',
+    'default_server = "local"',
+    token ? `spacetimedb_token = "${token}"` : '',
+    '', '[[server_configs]]', 'nickname = "local"', `host = "127.0.0.1:${port}"`, 'protocol = "http"', '',
+  ].join('\n'), { mode: 0o600 });
+}
+function ensureToken(port) {
+  const claims = ownerClaims();
+  if (claims) return writeCfg(port, mint(claims));
+  // No prod identity on this machine: let the sandbox server issue one, signed with the sandbox key.
+  const r = run('curl', ['-s', '-X', 'POST', `http://127.0.0.1:${port}/v1/identity`], { quiet: true });
+  writeCfg(port, JSON.parse(r.stdout).token);
+}
+
+// ---------- processes ----------
+function pickPorts() {
+  const s = state();
+  const taken = listening();
+  const claimed = new Set(allSandboxes().filter(x => x.dir !== DIR).flatMap(x => [x.state.stdbPort, x.state.webPort]));
+  const ok = p => !PROD_PORTS.includes(p) && !claimed.has(p) && !taken.has(p);
+  if (s.stdbPort && (ok(s.stdbPort) || alive(s.stdbPid, F.data)) && (ok(s.webPort) || alive(s.webPid, F.dist))) return s;
+  for (let i = 0; i < 100; i++) if (ok(3100 + i) && ok(5200 + i)) return { ...s, stdbPort: 3100 + i, webPort: 5200 + i };
+  die('no free ports in 3100-3199 / 5200-5299');
+}
+function spawnDetached(cmd, args, log) {
+  const fd = fs.openSync(log, 'a');
+  // detached: own process group, so it outlives the agent's shell and tool timeouts.
+  const p = cp.spawn(cmd, args, { cwd: ROOT, detached: true, stdio: ['ignore', fd, fd] });
+  p.unref();
+  return p.pid;
+}
+function startServer() {
+  fs.mkdirSync(DIR, { recursive: true });
+  let s = state();
+  if (alive(s.stdbPid, F.data)) return waitUp(s);
+  s = pickPorts();
+  ensureKeys();
+  s.stdbPid = spawnDetached(stdbBin(), ['start', '--listen-addr', `127.0.0.1:${s.stdbPort}`, '--data-dir', F.data,
+    '--jwt-key-dir', F.keys, '--page_pool_max_size', '67108864', '--non-interactive'], F.serverLog);
+  s.startedAt = Date.now();
+  saveState(s);
+  waitUp(s);
+  ensureToken(s.stdbPort);
+  return s;
+}
+function waitUp(s) {
+  for (let i = 0; i < 80 && !ping(s.stdbPort); i++) {
+    if (!alive(s.stdbPid, F.data)) die(`SpacetimeDB exited during start; see ${path.relative(ROOT, F.serverLog)}`);
+    sleep(125);
+  }
+  if (!ping(s.stdbPort)) die(`SpacetimeDB did not answer on :${s.stdbPort}; see ${path.relative(ROOT, F.serverLog)}`);
+  return s;
+}
+function startWeb(s) {
+  if (alive(s.webPid, F.dist)) return s;
+  s.webPid = spawnDetached('python3', ['-m', 'http.server', String(s.webPort), '--bind', '127.0.0.1', '--directory', F.dist], F.webLog);
+  saveState(s);
+  return s;
+}
+function kill(pid, needle) {
+  if (!alive(pid, needle)) return false;
+  try { process.kill(-pid, 'SIGTERM'); } catch { try { process.kill(pid, 'SIGTERM'); } catch {} }
+  for (let i = 0; i < 40 && alive(pid, needle); i++) sleep(100);
+  if (alive(pid, needle)) try { process.kill(-pid, 'SIGKILL'); } catch {}
+  return true;
+}
+function stopServer() { const s = state(); kill(s.stdbPid, F.data); delete s.stdbPid; saveState(s); }
+
+// ---------- building blocks ----------
+function deps() {
+  for (const d of ['server', 'client'])
+    if (!fs.existsSync(path.join(ROOT, d, 'node_modules')))
+      run('npm', ['ci', '--no-fund', '--no-audit', '--loglevel=error'], { cwd: path.join(ROOT, d) });
+}
+// Publishing never wipes: like play.sh, a breaking schema change fails and leaves the data alone.
+function publish() {
+  const r = cli(['publish', DB, '-y', '--module-path', 'server'], { quiet: true, check: false });
+  if (r.status !== 0) {
+    process.stderr.write(r.stdout + r.stderr);
+    die(`publish failed. If this is a breaking schema change, \`${ME} up --fresh\` wipes the sandbox data.`);
+  }
+}
+function buildClient(s) {
+  cli(['generate', '--lang', 'typescript', '--out-dir', 'client/src/module_bindings', '--module-path', 'server'], { quiet: true });
+  run('npx', ['vite', 'build', '--outDir', F.dist, '--emptyOutDir', '--logLevel', 'warn'], {
+    cwd: path.join(ROOT, 'client'),
+    env: { npm_config_loglevel: 'error', VITE_STDB_URI: `ws://127.0.0.1:${s.stdbPort}`, VITE_STDB_DB: DB },
+  });
+}
+function wipeData() { stopServer(); rmrf(F.data); }
+function counts() {
+  const q = t => cli(['sql', DB, `SELECT COUNT(*) AS n FROM ${t}`], { quiet: true, check: false }).stdout.match(/(\d+)\s*$/)?.[1] ?? '?';
+  return `${q('player')} players, ${q('run')} active runs, ${q('ghost')} ghosts, ${q('hall')} hall entries`;
+}
+function summary(s) {
+  say(`\n  sandbox "${NAME}" is up`);
+  say(`  game:     http://127.0.0.1:${s.webPort}`);
+  say(`  database: ws://127.0.0.1:${s.stdbPort}  (${DB})`);
+  say(`  data:     ${counts()}\n`);
+}
+
+// ---------- commands ----------
+const commands = {
+  up() {
+    const fresh = flag('--fresh');
+    deps();
+    if (fresh) wipeData();
+    const s = startServer();
+    publish();
+    buildClient(s);
+    summary(startWeb(state()));
+  },
+  reset() {
+    const fromProd = flag('--prod');
+    const snap = argv.shift();
+    if (snap && !fs.existsSync(path.join(F.snaps, snap))) die(`no snapshot "${snap}". Have: ${snapshots().join(', ') || 'none'}`);
+    deps();
+    wipeData();
+    if (fromProd) {
+      if (!fs.existsSync(prodDir())) die(`Krishna's game has no data yet (${prodDir()})`);
+      copyData(prodDir(), F.data); // read-only for prod: a plain file copy, works while it runs
+    } else if (snap) copyData(path.join(F.snaps, snap), F.data);
+    const s = startServer();
+    if (fromProd) cli(['unlock', DB], { quiet: true, check: false });
+    if (!fromProd && !snap) publish();
+    if (!fs.existsSync(path.join(F.dist, 'index.html'))) buildClient(s);
+    startWeb(state());
+    say(fromProd ? `Sandbox now holds a copy of Krishna's data, running his published code. \`${ME} up\` puts your code on top.`
+      : snap ? `Restored "${snap}" exactly as saved, including the module it ran. \`${ME} up\` puts your current code on top.`
+        : 'Fresh database with seeded bots.');
+    summary(state());
+  },
+  rehearse() {
+    // Dress rehearsal for shipping: Krishna's data, your code. If this passes, `./play.sh` will too.
+    argv.unshift('--prod');
+    commands.reset();
+    say('Publishing this checkout\'s code over the copy…');
+    publish();
+    buildClient(state());
+    say('Rehearsal passed: your code migrates cleanly onto a copy of Krishna\'s data.');
+    summary(state());
+  },
+  save() {
+    const snap = argv.shift() || new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    if (!/^[\w.-]+$/.test(snap)) die('snapshot names are letters, digits, dots, dashes and underscores');
+    if (!fs.existsSync(F.data)) die(`nothing to save yet; run \`${ME} up\``);
+    fs.mkdirSync(F.snaps, { recursive: true });
+    copyData(F.data, path.join(F.snaps, snap));
+    say(`Saved snapshot "${snap}". Restore it any time with \`${ME} reset ${snap}\`.`);
+  },
+  down() {
+    const pid = opt('--pid');
+    if (pid) {
+      // For orphans, e.g. a sandbox whose worktree was deleted. Refuses anything that isn't a sandbox.
+      if (!alive(+pid, '/.sandbox/')) die(`pid ${pid} is not a sandbox process; not touching it`);
+      kill(+pid, '/.sandbox/');
+      return say(`Stopped ${pid}.`);
+    }
+    const s = state();
+    const a = kill(s.stdbPid, F.data), b = kill(s.webPid, F.dist);
+    delete s.stdbPid; delete s.webPid;
+    if (fs.existsSync(F.state)) saveState(s);
+    say(a || b ? `Stopped sandbox "${NAME}". Data stays in ${path.relative(ROOT, DIR)}/.` : `Sandbox "${NAME}" was not running.`);
+  },
+  ls() {
+    const rows = [['', 'WHO', 'CHECKOUT', 'BRANCH', 'DB', 'WEB', 'RAM', 'LAST WRITE', 'CLIENTS']];
+    const known = new Set();
+    // Krishna's game: whatever listens on :3000. It's only "prod" if it serves the main checkout's data.
+    const prod = run('ss', ['-Hltnp', '( sport = :3000 )'], { quiet: true }).stdout.match(/pid=(\d+)/)?.[1];
+    const main = checkouts()[0];
+    const pd = prodDir();
+    const prodPid = fs.existsSync(path.join(pd, 'spacetime.pid')) ? fs.readFileSync(path.join(pd, 'spacetime.pid'), 'utf8').trim() : null;
+    if (prod) known.add(+prod);
+    const web = run('ss', ['-Hltnp', '( sport = :5173 )'], { quiet: true }).stdout.match(/pid=(\d+)/)?.[1];
+    rows.push([prod ? '●' : '○', prod && prod !== prodPid ? 'NOT PROD ⚠' : 'prod (Krishna)', path.basename(main.path), main.branch,
+      prod ? ':3000' : '-', web ? ':5173' : '-', prod ? `${rssMb([prod, web].filter(Boolean))}MB` : '-',
+      ago(lastWrite(pd)), prod ? String(clients(3000)) : '-']);
+    for (const x of allSandboxes()) {
+      const s = x.state, data = path.join(x.dir, 'data'), up = alive(s.stdbPid, data);
+      const webUp = alive(s.webPid, path.join(x.dir, 'dist'));
+      known.add(s.stdbPid);
+      const snaps = fs.existsSync(path.join(x.dir, 'snapshots')) ? fs.readdirSync(path.join(x.dir, 'snapshots')) : [];
+      rows.push([up ? '●' : '○', `sandbox ${x.name}${x.dir === DIR ? ' (you)' : ''}${snaps.length ? ` [${snaps.length} saved]` : ''}`,
+        path.basename(x.checkout.path), x.checkout.branch, up ? `:${s.stdbPort}` : '-', webUp ? `:${s.webPort}` : '-',
+        up || webUp ? `${rssMb([up && s.stdbPid, webUp && s.webPid].filter(Boolean))}MB` : '-', ago(lastWrite(data)),
+        up ? String(clients(s.stdbPort)) : '-']);
+    }
+    for (const line of run('pgrep', ['-a', '-f', 'spacetimedb-standalone start'], { quiet: true, check: false }).stdout.split('\n').filter(Boolean)) {
+      const pid = +line.split(' ')[0];
+      if (known.has(pid)) continue;
+      const args = cmdline(pid) || [];
+      const dataDir = args[args.lastIndexOf('--data-dir') + 1] || '?';
+      const addr = args[args.lastIndexOf('--listen-addr') + 1] || '?';
+      rows.push(['●', `unknown pid ${pid}`, dataDir.replace(os.homedir(), '~'), '', addr.replace(/.*:/, ':'), '', `${rssMb([pid])}MB`, ago(lastWrite(dataDir)), '']);
+    }
+    const w = rows[0].map((_, i) => Math.max(...rows.map(r => r[i].length)));
+    for (const r of rows) say(r.map((c, i) => c.padEnd(w[i])).join('  ').trimEnd());
+    if (prod && prod !== prodPid) say('\n⚠ Something other than Krishna\'s game holds :3000. play.sh will refuse to start until it stops.');
+  },
+  status() { commands.ls(); },
+  env() {
+    const s = state();
+    if (!s.stdbPort) die(`no sandbox yet; run \`${ME} up\``);
+    say(`export SANDBOX_NAME=${NAME}\nexport SANDBOX_WEB=http://127.0.0.1:${s.webPort}\nexport SANDBOX_STDB=ws://127.0.0.1:${s.stdbPort}\nexport SANDBOX_DB=${DB}\nexport SANDBOX_DIR=${DIR}`);
+  },
+  url() { const s = state(); if (!s.webPort) die(`no sandbox yet; run \`${ME} up\``); say(`http://127.0.0.1:${s.webPort}`); },
+  sql() { needUp(); quietCli(['sql', DB, argv.join(' ')]); },
+  call() { needUp(); quietCli(['call', DB, ...argv]); },
+  logs() { needUp(); quietCli(['logs', DB, ...(argv.length ? argv : ['-n', '50'])]); },
+  cli() { needUp(); process.exitCode = cli(argv, { check: false }).status; },
+  help() {
+    say(`Your own copy of Rabble Below. Break it, reset it, nobody else notices.
+
+  ./sandbox up [--fresh]     start (or update) your sandbox with this checkout's code; --fresh wipes data first
+  ./sandbox reset            wipe to a fresh database with seeded bots
+  ./sandbox reset <snap>     go back to a saved snapshot
+  ./sandbox reset --prod     copy Krishna's current data into your sandbox (his game is only read)
+  ./sandbox save [snap]      snapshot your sandbox's data
+  ./sandbox rehearse         copy Krishna's data, then publish your code on top: proves shipping is safe
+  ./sandbox sql "<query>"    query your sandbox            ./sandbox call <reducer> [args]
+  ./sandbox logs [-n 50]     module logs                   ./sandbox cli <spacetimedb-cli args>
+  ./sandbox env | url        URLs for scripts and browsers
+  ./sandbox ls               everything running on this machine: Krishna's game, every sandbox, RAM, activity
+  ./sandbox down [--pid N]   stop your sandbox (data is kept), or an orphaned sandbox process
+
+Options: -n <name> (or SANDBOX=<name>) runs a second, separate sandbox from the same checkout.`);
+  },
+};
+function needUp() { if (!alive(state().stdbPid, F.data)) die(`sandbox "${NAME}" is not running; run \`${ME} up\``); }
+// The CLI prefixes sql/call/logs with an "UNSTABLE" banner; agents call these constantly, so drop it.
+function quietCli(args) {
+  const r = cli(args, { quiet: true, check: false });
+  const clean = t => (t || '').replace(/^WARNING: This command is UNSTABLE.*\n+/m, '');
+  process.stdout.write(clean(r.stdout));
+  process.stderr.write(clean(r.stderr));
+  process.exitCode = r.status;
+}
+function snapshots() { return fs.existsSync(F.snaps) ? fs.readdirSync(F.snaps) : []; }
+
+const cmd = argv.shift() || 'help';
+if (!commands[cmd]) die(`unknown command "${cmd}". Try \`./sandbox help\`.`);
+commands[cmd]();
