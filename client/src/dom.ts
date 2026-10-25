@@ -36,12 +36,12 @@ export function floatAt(el: Element | null | undefined, text: string, cls = 'goo
 }
 
 let toastBox: HTMLElement | null = null;
-export function toast(text: string, err = false) {
+export function toast(text: string, err = false, ms = 2700) {
   emit('toast', text);
   if (!toastBox || !toastBox.isConnected) { toastBox = h('div', { class: 'toasts' }); document.body.append(toastBox); }
   const t = h('div', { class: `toast${err ? ' err' : ''}` }, text);
   toastBox.append(t);
-  setTimeout(() => t.remove(), 2700);
+  setTimeout(() => t.remove(), ms);
 }
 
 export const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
