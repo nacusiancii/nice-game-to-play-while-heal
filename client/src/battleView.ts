@@ -22,8 +22,14 @@ export const speedLabel = (v: number) => (v === 0 ? 'Instant' : `${v}x`);
 
 export interface BattleMeta { myName: string; myWins: number; myLives: number; myRelics: string[] }
 
-export function playBattle(root: HTMLElement, b: Battle, meta: BattleMeta, onDone: () => void) {
+// What is on screen right now, for playtest reactions.
+export const battleNow = { id: 0n, frame: -1, frames: 0, over: false, meta: null as BattleMeta | null };
+
+// freezeAt (replays of a reaction): show that frame and wait for `resume` before playing on.
+export function playBattle(root: HTMLElement, b: Battle, meta: BattleMeta, onDone: () => void,
+  opts: { freezeAt?: number; resume?: Promise<void> } = {}) {
   const frames: Frame[] = JSON.parse(b.frames);
+  Object.assign(battleNow, { id: b.id, frame: -1, frames: frames.length, over: false, meta });
   let speed = getSpeed() || 4;
   let skipping = false;
   let finished = false;
@@ -177,7 +183,9 @@ export function playBattle(root: HTMLElement, b: Battle, meta: BattleMeta, onDon
       h('button', { class: 'btn primary', onclick: () => { cleanup(); onDone(); } }, 'Continue'));
     arena.querySelector('.battle-controls')?.remove();
     arena.append(box);
-    (box.querySelector('button') as HTMLButtonElement).focus();
+    battleNow.over = true;
+    // don't steal focus from someone typing a reaction
+    if (!(document.activeElement instanceof HTMLInputElement)) (box.querySelector('button') as HTMLButtonElement).focus();
     // fast mode: don't make the player click through
     if (getSpeed() === 0 || getSpeed() >= 4) setTimeout(() => { if (box.isConnected) { cleanup(); onDone(); } }, 1100);
   }
@@ -186,13 +194,23 @@ export function playBattle(root: HTMLElement, b: Battle, meta: BattleMeta, onDon
     if (ev.key === 'Escape' || ev.key === 's') skipping = true;
   };
   window.addEventListener('keydown', key);
-  const cleanup = () => window.removeEventListener('keydown', key);
+  const cleanup = () => { window.removeEventListener('keydown', key); battleNow.id = 0n; battleNow.frame = -1; };
 
   (async () => {
     // Let the stage size itself before the first layout.
     await sleep(30);
-    for (let i = 0; i < frames.length; i++) {
-      if (skipping) { layout(frames[frames.length - 1]); break; }
+    let i0 = 0;
+    if (opts.freezeAt !== undefined && frames.length) {
+      i0 = Math.max(0, Math.min(opts.freezeAt, frames.length - 1));
+      battleNow.frame = i0;
+      layout(frames[i0]);
+      applyFx(frames[i0].fx);
+      await opts.resume;
+      i0++;
+    }
+    for (let i = i0; i < frames.length; i++) {
+      if (skipping) { battleNow.frame = frames.length - 1; layout(frames[frames.length - 1]); break; }
+      battleNow.frame = i;
       const f = frames[i];
       layout(f);
       applyFx(f.fx);

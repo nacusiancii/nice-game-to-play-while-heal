@@ -245,3 +245,16 @@ button { font: inherit; color: inherit; }
 .lvl.tier { color: var(--gold); }
 .tribes { display: flex; gap: 8px; min-height: 24px; position: relative; z-index: 2; }
 .tribe-chip { font-size: 15px; color: var(--ink); background: rgba(20,16,22,0.7); border: 1px solid var(--edge); border-radius: 6px; padding: 2px 6px; }
+
+/* ---------- playtest reactions ---------- */
+.react-btn { position: fixed; left: 12px; bottom: 12px; z-index: 70; background: var(--panel); border: 2px solid var(--edge); border-radius: 20px; padding: 3px 10px; font-size: 16px; cursor: pointer; opacity: 0.55; }
+.react-btn:hover { opacity: 1; }
+.react-btn.noted { animation: noted 0.9s ease; }
+@keyframes noted { 0% { opacity: 1; transform: scale(1.35); border-color: var(--gold); } 100% { opacity: 0.55; transform: scale(1); } }
+.react-box { position: fixed; left: 12px; bottom: 12px; z-index: 80; display: flex; gap: 8px; align-items: center; background: var(--panel); border: 2px solid var(--gold); border-radius: 12px; padding: 8px 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.7); animation: pop 0.15s ease; }
+.react-input { font: inherit; color: var(--ink); background: #1d1720; border: 1px solid var(--edge); border-radius: 6px; padding: 4px 8px; width: 280px; outline: none; user-select: text; }
+.react-chip { background: #2c2232; border: 1px solid var(--edge); border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 15px; }
+.react-chip:hover { border-color: var(--gold); }
+.replay-banner { cursor: pointer; opacity: 0.92; position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 90; background: #2a1830; border: 2px solid var(--gold); border-top: 0; border-radius: 0 0 12px 12px; padding: 4px 14px; font-size: 16px; display: flex; gap: 12px; align-items: center; max-width: 96vw; }
+.replay-banner q { color: var(--gold); }
+.replay-banner .btn { padding: 2px 10px; font-size: 15px; }

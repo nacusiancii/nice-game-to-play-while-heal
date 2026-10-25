@@ -6,6 +6,7 @@ cd "$(dirname "$0")"
 
 DB=rabble-below
 PORT=${PORT:-5173}
+export GAME_URL="http://127.0.0.1:$PORT" # replay links in playtest sessions
 stdb() { mise exec -- spacetimedb-cli "$@"; }
 
 if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
@@ -17,6 +18,7 @@ fi
 mise install --quiet >/dev/null 2>&1 || true
 [ -d server/node_modules ] || (cd server && npm install --no-fund --no-audit)
 [ -d client/node_modules ] || (cd client && npm install --no-fund --no-audit)
+[ -d tools/node_modules ] || (cd tools && npm install --no-fund --no-audit)
 
 # Something already serves :3000? Reuse it only if it is this game's own server.
 running=$(curl -s -o /dev/null http://127.0.0.1:3000/v1/ping && echo yes || true)
@@ -27,14 +29,24 @@ if [ -n "$running" ] && [ "$holder" != "$(cat .stdb-data/spacetime.pid 2>/dev/nu
   exit 1
 fi
 
-# On exit or Ctrl+C, stop exactly what this script started (SpacetimeDB, the web server), nothing else.
+# On exit or Ctrl+C: hand this session's reactions (H in game) to an agent, then stop exactly what this
+# script started (SpacetimeDB, the web server, the courier), nothing else. Everything runs under setsid,
+# so Ctrl+C reaches only this script: the server stays up for the hand-off, and a second Ctrl+C can't
+# cut the hand-off short.
 started=()
-trap 'trap - EXIT INT TERM; [ ${#started[@]} -eq 0 ] || kill "${started[@]}" 2>/dev/null; exit' EXIT INT TERM
+playing=
+stop() {
+  trap '' INT; trap - EXIT TERM HUP
+  [ -z "$playing" ] || (cd tools && setsid node --import tsx playtest.ts deliver) || true
+  [ ${#started[@]} -eq 0 ] || kill "${started[@]}" 2>/dev/null
+  exit
+}
+trap stop EXIT INT TERM HUP
 
 if [ -z "$running" ]; then
   echo "Starting SpacetimeDB…"
   mkdir -p .stdb-data
-  stdb start --listen-addr 127.0.0.1:3000 --data-dir ./.stdb-data \
+  setsid mise exec -- spacetimedb-cli start --listen-addr 127.0.0.1:3000 --data-dir ./.stdb-data \
     --page_pool_max_size 67108864 --non-interactive > .stdb-data/server.log 2>&1 &
   for _ in $(seq 40); do curl -s -o /dev/null http://127.0.0.1:3000/v1/ping && break; sleep 0.25; done
   curl -s -o /dev/null http://127.0.0.1:3000/v1/ping && started+=("$(cat .stdb-data/spacetime.pid)")
@@ -62,10 +74,14 @@ echo "Building client…"
 
 echo
 echo "  Rabble Below is ready:  http://127.0.0.1:$PORT"
-echo "  (Ctrl+C to stop)"
+echo "  Press H in game to react: a word or two, Enter."
+echo "  (Ctrl+C to stop; your reactions go to an agent)"
 echo
 [ -z "${NO_OPEN:-}" ] && command -v xdg-open >/dev/null && (sleep 1; xdg-open "http://127.0.0.1:$PORT" >/dev/null 2>&1) &
-python3 -m http.server "$PORT" --bind 127.0.0.1 --directory client/dist >/dev/null 2>&1 &
-started+=("$!")
-wait "$!" || true
+setsid python3 -m http.server "$PORT" --bind 127.0.0.1 --directory client/dist >/dev/null 2>&1 &
+web=$!
+(cd tools && exec setsid node --import tsx playtest.ts watch) & # exec: $! is the courier itself
+started+=("$web" "$!")
+playing=yes
+wait "$web" || true
 echo "The web server stopped (is port $PORT busy?). Stopping the game."

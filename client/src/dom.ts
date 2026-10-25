@@ -1,4 +1,6 @@
 // Minimal DOM helpers.
+import { emit } from './events';
+
 type Child = Node | string | number | null | undefined | false;
 type Props = Record<string, unknown> | null;
 
@@ -35,6 +37,7 @@ export function floatAt(el: Element | null | undefined, text: string, cls = 'goo
 
 let toastBox: HTMLElement | null = null;
 export function toast(text: string, err = false) {
+  emit('toast', text);
   if (!toastBox || !toastBox.isConnected) { toastBox = h('div', { class: 'toasts' }); document.body.append(toastBox); }
   const t = h('div', { class: `toast${err ? ' err' : ''}` }, text);
   toastBox.append(t);

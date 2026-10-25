@@ -17,6 +17,21 @@ Then open http://127.0.0.1:5173. Ctrl+C stops everything.
 with its data in `.stdb-data/`, publishes the module, builds the client and serves it with Python's static server.
 Total footprint is around 100 MB of RAM.
 
+## Playtest reactions
+
+Press **H** anywhere in the game, type a word or two ("huh?", "fun!", "bug"), Enter. Play never stops.
+Each reaction saves the exact moment: your words, the run as the server sees it, the screen (down to the
+battle frame) and what you had just done.
+
+When you stop `play.sh`, or after 20 quiet minutes, the session's reactions are bundled into
+`.playtest/sessions/<time>/SESSION.md` for an agent thread to triage (see `playtest/TRIAGE.md`). Something
+that sounds like a bug ("bug", "stuck", "broken"…) goes out at once as its own bundle.
+
+- `?moment=<id>` on the game URL replays a saved moment exactly, read-only. Add `&src=http://host:port` to
+  read it from another server, or `&src=<url of a moments/<id>.json>`; `&clean` hides the banner.
+- `cd tools && npx tsx playtest.ts status` shows what's waiting; `deliver` bundles it now.
+- If `.playtest/webhook` holds a T3 webhook URL, each bundle is posted there and opens a fresh thread.
+
 ## How it works
 
 - `server/src/game/` holds the whole rules engine as plain TypeScript: units, items, relics, shop, battle, bot AI.
