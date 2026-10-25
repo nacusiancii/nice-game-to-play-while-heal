@@ -120,6 +120,12 @@ button { font: inherit; color: inherit; }
 .lvl.max { background: #5a3d0c; border-color: var(--gold); color: var(--gold); }
 .held { position: absolute; top: -6px; right: -8px; width: 34px; height: 34px; border-radius: 50%; background: #2c2232; border: 2px solid var(--edge); display: grid; place-items: center; z-index: 2; }
 .held img { width: 28px; height: 28px; }
+.held { cursor: grab; touch-action: none; }
+.held.selected { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold); }
+.team .slot.pocket { width: 58px; height: 58px; align-self: center; align-items: center; }
+.slot.pocket .held { position: static; width: 44px; height: 44px; }
+.slot.pocket .held img { width: 36px; height: 36px; }
+.pocket-label { position: absolute; top: -20px; left: 0; right: 0; text-align: center; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--dim); }
 .tierdot { position: absolute; bottom: 30px; right: -2px; font-size: 11px; color: var(--dim); }
 .item { position: relative; width: var(--cell); height: calc(var(--cell) + 40px); cursor: grab; touch-action: none; display: flex; align-items: center; justify-content: center; }
 .item img { width: calc(var(--cell) * 0.8); height: calc(var(--cell) * 0.8); filter: drop-shadow(0 4px 0 rgba(0,0,0,0.45)); }

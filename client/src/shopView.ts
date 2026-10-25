@@ -1,7 +1,7 @@
 // The den: your team, the shop, and all buying/selling/arranging.
-import { UNIT_COST, WINS_TO_VICTORY, levelOf, sellValue, shopTier } from '../../server/src/game/core';
+import { ITEM_SELL, UNIT_COST, WINS_TO_VICTORY, levelOf, sellValue, shopTier } from '../../server/src/game/core';
 import { ITEMS, RELICS, UNITS } from '../../server/src/game/data';
-import { itemCost, rerollCost } from '../../server/src/game/shop';
+import { POCKET, itemCost, rerollCost } from '../../server/src/game/shop';
 import type { Run } from './module_bindings/types';
 import { api, store } from './net';
 import { floatAt, h, img, toast } from './dom';
@@ -11,7 +11,9 @@ import { cycleSpeed, getSpeed, speedLabel } from './battleView';
 
 const ordinal = (n: number) => `${n}${['th', 'st', 'nd', 'rd'][n % 10 > 3 || (n % 100 >= 11 && n % 100 <= 13) ? 0 : n % 10]}`;
 
-type Sel = { from: 'shop' | 'team'; idx: number } | null;
+// 'item' is a held item: idx is its holder's team slot, or POCKET
+type Src = { from: 'shop' | 'team' | 'item'; idx: number };
+type Sel = Src | null;
 
 export interface ShopHooks { onMenu: () => void; onFight: () => void }
 
@@ -57,6 +59,7 @@ export class ShopView {
 
     // team: index 0 is the front, shown on the right
     const teamRow = h('div', { class: 'team' });
+    teamRow.append(this.pocketSlot(), h('div', { class: 'divider' }));
     for (let i = r.team.length - 1; i >= 0; i--) teamRow.append(this.teamSlot(i));
     teamRow.append(h('div', { class: 'front-arrow', title: 'Front' }, '➜'));
     const counts = new Map<string, number>();
@@ -76,12 +79,14 @@ export class ShopView {
 
     const selShop = this.sel?.from === 'shop' ? r.shop[this.sel.idx] : undefined;
     const selTeam = this.sel?.from === 'team' ? r.team[this.sel.idx] : undefined;
+    const selItem = this.sel?.from === 'item' ? this.itemAt(this.sel.idx) : '';
     const rc = rerollCost(r);
     const sure = selTeam?.kind && this.isArmed(`sell:${this.sel!.idx}`);
     const sellBtn = h('button', {
-      class: `btn sell${sure ? ' sure' : ''}`, 'data-drop': 'sell', disabled: !selTeam?.kind && !this.dragging,
+      class: `btn sell${sure ? ' sure' : ''}`, 'data-drop': 'sell', disabled: !selTeam?.kind && !selItem && !this.dragging,
       onclick: () => this.sellSelected(),
-    }, selTeam?.kind ? `${sure ? 'Really sell' : 'Sell'} ${UNITS[selTeam.kind].name} +${sellValue(selTeam)}g${sure ? '?' : ''}` : 'Sell', h('span', { class: 'kbd' }, 'S'));
+    }, selTeam?.kind ? `${sure ? 'Really sell' : 'Sell'} ${UNITS[selTeam.kind].name} +${sellValue(selTeam)}g${sure ? '?' : ''}`
+      : selItem ? `Sell ${ITEMS[selItem].name} +${ITEM_SELL}g` : 'Sell', h('span', { class: 'kbd' }, 'S'));
     const controls = h('div', { class: 'controls' },
       h('button', { class: 'btn gold', onclick: () => this.reroll(), disabled: r.gold < rc },
         rc ? `Reroll ${rc}g` : 'Reroll (free)', h('span', { class: 'kbd' }, 'R')),
@@ -121,12 +126,39 @@ export class ShopView {
       const place = r.team.slice(0, i).filter(x => x.kind).length + 1;
       this.hoverable(slot, () => unitInfo(u.kind, u.xp, `fights ${ordinal(place)} · sells for ${sellValue(u)}g`));
       const held = el.querySelector<HTMLElement>('.held');
-      if (held && u.item) this.hoverable(held, () => itemInfo(u.item, `held by ${UNITS[u.kind].name}, can't be sold on its own`));
+      if (held && u.item) {
+        if (this.sel?.from === 'item' && this.sel.idx === i) held.classList.add('selected');
+        this.hoverable(held, () => itemInfo(u.item, `held by ${UNITS[u.kind].name} · drag it to another unit, the pocket or Sell (${ITEM_SELL}g)`));
+        this.draggable(held, { from: 'item', idx: i }, ITEMS[u.item].sprite);
+        held.addEventListener('pointerdown', e => e.stopPropagation()); // drag the item, not its holder
+        held.addEventListener('click', e => { e.stopPropagation(); this.clickItem(i); });
+      }
       this.draggable(el, { from: 'team', idx: i }, UNITS[u.kind].sprite);
     }
     slot.addEventListener('click', () => this.clickTeam(i));
     return slot;
   }
+
+  // One spare item, waiting for a new holder.
+  pocketSlot() {
+    const k = this.run.pocket;
+    const selected = this.sel?.from === 'item' && this.sel.idx === POCKET;
+    const slot = h('div', { class: `slot pocket${selected ? ' selected' : ''}`, 'data-drop': 'pocket' },
+      h('div', { class: 'pocket-label' }, 'pocket'));
+    if (k) {
+      const el = h('div', { class: 'held' }, img(ITEMS[k].sprite));
+      slot.append(el);
+      this.draggable(el, { from: 'item', idx: POCKET }, ITEMS[k].sprite);
+      this.hoverable(slot, () => itemInfo(k, `in your pocket · give it to a unit, or sell it for ${ITEM_SELL}g`));
+    } else {
+      this.hoverable(slot, () => [h('div', null, h('h3', null, 'Pocket'),
+        h('div', { class: 'txt' }, `Holds one spare item. An item that gets bumped off a unit lands here; if the pocket is full, it's sold for ${ITEM_SELL}g.`))]);
+    }
+    slot.addEventListener('click', () => this.clickPocket());
+    return slot;
+  }
+
+  itemAt(i: number) { return i === POCKET ? this.run.pocket : this.run.team[i]?.item ?? ''; }
 
   shopSlot(i: number, price: number) {
     const s = this.run.shop[i];
@@ -176,6 +208,9 @@ export class ShopView {
       if (this.sel.from === 'shop') {
         const s = r.shop[this.sel.idx];
         if (s?.kind) content = s.isItem ? itemInfo(s.kind) : unitInfo(s.kind, 0);
+      } else if (this.sel.from === 'item') {
+        const k = this.itemAt(this.sel.idx);
+        if (k) content = itemInfo(k, `click a unit to hand it over, the pocket to stash it, or press S to sell it for ${ITEM_SELL}g`);
       } else {
         const u = r.team[this.sel.idx];
         if (u?.kind) content = unitInfo(u.kind, u.xp);
@@ -228,6 +263,7 @@ export class ShopView {
     const r = this.run;
     const sel = this.sel;
     if (sel?.from === 'shop') { this.sel = null; this.doBuy(sel.idx, i); return; }
+    if (sel?.from === 'item') { this.sel = null; this.doMoveItem(sel.idx, i); return; }
     if (sel?.from === 'team') {
       if (sel.idx === i) return this.setSel(null);
       this.sel = null;
@@ -235,6 +271,26 @@ export class ShopView {
       return;
     }
     if (r.team[i].kind) { sfx.click(); this.setSel({ from: 'team', idx: i }); }
+  }
+
+  clickItem(i: number) {
+    if (this.sel?.from === 'item') {
+      if (this.sel.idx === i) return this.setSel(null);
+      const from = this.sel.idx;
+      this.sel = null;
+      return this.doMoveItem(from, i);
+    }
+    if (this.sel) return this.clickTeam(i);
+    sfx.click();
+    this.setSel({ from: 'item', idx: i });
+  }
+
+  clickPocket() {
+    const sel = this.sel;
+    if (sel?.from === 'item' && sel.idx !== POCKET) { this.sel = null; return this.doMoveItem(sel.idx, POCKET); }
+    if (sel?.from === 'item') return this.setSel(null);
+    if (sel) return this.setSel(null);
+    if (this.run.pocket) { sfx.click(); this.setSel({ from: 'item', idx: POCKET }); }
   }
 
   quickBuy(i: number) {
@@ -258,8 +314,8 @@ export class ShopView {
     if (r.gold < price) { sfx.error(); toast('Not enough gold.', true); return this.render(); }
     if (s.isItem && !u.kind) { sfx.error(); toast('Drop items onto a unit.', true); return this.render(); }
     if (!s.isItem && u.kind && u.kind !== s.kind) { sfx.error(); toast('That slot is taken. Drop on an empty slot or the same kind.', true); return this.render(); }
-    if (s.isItem && ITEMS[s.kind].held && u.item && u.item !== s.kind &&
-      !this.confirm(`item:${shopIdx}:${teamIdx}`, `${UNITS[u.kind].name} already holds ${ITEMS[u.item].name}. Do that again to swap it out.`)) return;
+    if (s.isItem && ITEMS[s.kind].held && u.item && r.pocket &&
+      !this.confirm(`item:${shopIdx}:${teamIdx}`, `${UNITS[u.kind].name} already holds ${ITEMS[u.item].name} and your pocket is full, so it would be sold for ${ITEM_SELL}g. Do that again to swap it out.`)) return;
     if (!s.isItem && u.kind === s.kind) sfx.merge(); else sfx.buy();
     api.buy(shopIdx, teamIdx);
     this.render();
@@ -268,19 +324,43 @@ export class ShopView {
   doMove(from: number, to: number) {
     const r = this.run;
     const a = r.team[from], b = r.team[to];
-    if (a.kind && b.kind === a.kind) sfx.merge(); else sfx.click();
+    const merging = !!a.kind && b.kind === a.kind && a.xp < 5 && b.xp < 5;
+    // a merge keeps the target's item and pockets the other; with a full pocket it's sold, so ask first
+    if (merging && a.item && b.item && r.pocket && !this.confirm(`merge:${from}:${to}`,
+      `Merging keeps ${ITEMS[b.item].name}. Your pocket is full, so ${ITEMS[a.item].name} would be sold for ${ITEM_SELL}g. Do that again to merge.`)) return;
+    if (merging) sfx.merge(); else sfx.click();
     api.move(from, to);
     this.render();
   }
 
+  doMoveItem(from: number, to: number) {
+    if (from === to || !this.itemAt(from)) return this.render();
+    if (to !== POCKET && !this.run.team[to]?.kind) { sfx.error(); toast('Give items to a unit, or put them in the pocket.', true); return this.render(); }
+    sfx.buy();
+    api.moveItem(from, to);
+    this.render();
+  }
+
+  sellItemAt(i: number) {
+    if (!this.itemAt(i)) return this.render();
+    sfx.sell();
+    floatAt(this.root.querySelector('.goldnum'), `+${ITEM_SELL}g`, 'gold');
+    this.sel = null;
+    api.sellItem(i);
+    this.render();
+  }
+
   sellSelected() {
+    if (this.sel?.from === 'item') return this.sellItemAt(this.sel.idx);
     if (this.sel?.from !== 'team') return;
     const i = this.sel.idx;
     const u = this.run.team[i];
     if (!u.kind) return;
-    // a levelled unit or one holding an item is worth a second press (dragging to Sell is deliberate enough)
-    if ((levelOf(u.xp) > 1 || u.item) && !this.confirm(`sell:${i}`,
-      `Sell ${UNITS[u.kind].name}${u.item ? ` and its ${ITEMS[u.item].name}` : ''} for ${sellValue(u)}g? Press Sell again.`)) return;
+    // its item goes to the pocket; a levelled unit, or an item that would be sold, is worth a second press
+    // (dragging to Sell is deliberate enough)
+    const loses = !!u.item && !!this.run.pocket;
+    if ((levelOf(u.xp) > 1 || loses) && !this.confirm(`sell:${i}`,
+      `Sell ${UNITS[u.kind].name}${loses ? ` and its ${ITEMS[u.item].name}` : ''} for ${sellValue(u) + (loses ? ITEM_SELL : 0)}g? Press Sell again.`)) return;
     this.sel = null;
     this.sellAt(i);
   }
@@ -288,7 +368,8 @@ export class ShopView {
   sellAt(i: number) {
     const u = this.run.team[i];
     sfx.sell();
-    floatAt(this.root.querySelector('.goldnum'), `+${sellValue(u) + (u.kind === 'kobold' ? levelOf(u.xp) : 0)}g`, 'gold');
+    const itemGold = u.item && this.run.pocket ? ITEM_SELL : 0;
+    floatAt(this.root.querySelector('.goldnum'), `+${sellValue(u) + (u.kind === 'kobold' ? levelOf(u.xp) : 0) + itemGold}g`, 'gold');
     api.sell(i);
     this.render();
   }
@@ -335,7 +416,7 @@ export class ShopView {
   }
 
   // ---------- drag & drop ----------
-  draggable(el: HTMLElement, src: { from: 'shop' | 'team'; idx: number }, sprite: string) {
+  draggable(el: HTMLElement, src: Src, sprite: string) {
     el.addEventListener('pointerdown', (down: PointerEvent) => {
       if (down.button !== 0) return;
       const sx = down.clientX, sy = down.clientY;
@@ -375,11 +456,18 @@ export class ShopView {
         setTimeout(() => window.removeEventListener('click', swallow, { capture: true }), 50);
         if (!target) return this.render();
         if (target === 'sell') {
-          if (src.from === 'team') this.sellAt(src.idx); else this.render();
+          if (src.from === 'team') this.sellAt(src.idx);
+          else if (src.from === 'item') this.sellItemAt(src.idx);
+          else this.render();
+          return;
+        }
+        if (target === 'pocket') {
+          if (src.from === 'item') this.doMoveItem(src.idx, POCKET); else this.render();
           return;
         }
         const ti = Number(target.split(':')[1]);
-        if (src.from === 'shop') this.doBuy(src.idx, ti);
+        if (src.from === 'item') this.doMoveItem(src.idx, ti);
+        else if (src.from === 'shop') this.doBuy(src.idx, ti);
         else if (src.idx !== ti) this.doMove(src.idx, ti);
         else this.render();
       };
@@ -388,8 +476,18 @@ export class ShopView {
     });
   }
 
-  markDropTargets(src: { from: 'shop' | 'team'; idx: number }) {
+  markDropTargets(src: Src) {
     const r = this.run;
+    if (src.from === 'item') {
+      this.root.querySelectorAll<HTMLElement>('[data-drop^="team:"]').forEach(el => {
+        const i = Number(el.dataset.drop!.split(':')[1]);
+        if (i !== src.idx && r.team[i].kind) el.classList.add('drop-ok');
+      });
+      if (src.idx !== POCKET) this.root.querySelector('[data-drop="pocket"]')?.classList.add('drop-ok');
+      const sb = this.root.querySelector<HTMLButtonElement>('[data-drop="sell"]');
+      if (sb) { sb.disabled = false; sb.classList.add('drop-ok'); }
+      return;
+    }
     const kind = src.from === 'shop' ? r.shop[src.idx].kind : r.team[src.idx].kind;
     const isItem = src.from === 'shop' && r.shop[src.idx].isItem;
     this.root.querySelectorAll<HTMLElement>('[data-drop^="team:"]').forEach(el => {

@@ -83,8 +83,13 @@ Dice or the Tome. So the Market changed its shelf:
   writes them under its pictures. Two listeners, one story, so they can't disagree.
 - **No undo. We live with our decisions.** A sale is a sale, like at any honest black market. Instead,
   the expensive mistakes are hard to make by accident: selling a levelled misfit, or one holding
-  something, takes a second press (dragging it to Sell is deliberate enough), and so does swapping out
-  an item someone already holds. The front line that was sold in the first playtest is avenged.
+  something, takes a second press (dragging it to Sell is deliberate enough). So does anything that
+  would sell an item behind your back (see the pocket, below).
+- **Items aren't welded on.** Drag a held item to another unit (they swap), into the **pocket**, or onto
+  Sell for 1 gold. The pocket holds one spare item. Whenever an item gets bumped off a unit (by a merge,
+  a new item, or selling its holder), it lands in the pocket; if the pocket is full, it's sold for 1 gold,
+  and the game asks twice first. The first player to equip anything asked why they "still" couldn't move
+  it, right after a merge quietly ate their Bone Charm. Items in the pocket don't fight and don't pay. The front line that was sold in the first playtest is avenged.
 - **The shelf stays put.** When you buy something, its spot on the shelf stays empty until the next
   reroll, so nothing slides under your hand and the number keys keep pointing where they did.
 - **The first two rounds are free.** Round 1 and 2 fights are coin flips between three random

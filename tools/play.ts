@@ -7,6 +7,9 @@
 //                                or an item onto the unit in that slot. <shop> is a number or part of a name.
 //   ./play sell <slot>
 //   ./play move <from> <to>      swap two slots (merges if they're the same kind)
+//   ./play give <from> <to>      move a held item to another unit or the pocket (swaps with what's there);
+//                                <from>/<to> are team slots or `pocket`
+//   ./play sellitem <slot|pocket>   sell a held item for 1 gold
 //   ./play order <slots...>      line the team up in this order, e.g. `order 3 0 1` (others keep their order behind)
 //   ./play reroll | freeze <shop> | relic <n>
 //   ./play fight [--full]        end the turn and fight a ghost (--full: blow by blow)
@@ -44,6 +47,7 @@ for (let i = 2; i < process.argv.length; i++) {
 const [cmd, ...rest] = words;
 
 function fail(msg: string): never { console.log(`! ${msg}`); process.exit(1); }
+const spot = (i: number) => (rest[i] === 'pocket' ? shop.POCKET : num(i, 'a team slot or "pocket"'));
 const num = (i: number, what: string) => {
   const n = Number(rest[i]);
   if (rest[i] === undefined || !Number.isInteger(n)) fail(`expected ${what} as a number, got "${rest[i] ?? ''}"`);
@@ -82,6 +86,7 @@ function show(s: Save) {
   }
   console.log(`\nTeam (slot 0 fights first; empty slots are skipped in battle; ${teamSlots(st.relics)} slots):`);
   st.team.forEach((u, i) => console.log(`  ${i}. ${u.kind ? describeUnit(u) : '(empty)'}`));
+  console.log(`  pocket: ${st.pocket ? `${ITEMS[st.pocket].name} — ${ITEMS[st.pocket].text}` : '(empty)'} (one spare item; an item bumped off a unit lands here, or is sold for 1 gold if it's full)`);
   console.log(`\nShop:`);
   st.shop.forEach((x, i) => {
     if (!x.kind) return;
@@ -91,14 +96,14 @@ function show(s: Save) {
       const d = UNITS[x.kind];
       console.log(`  ${i}. T${d.tier} ${d.name} ${stats(x)} [${d.tribe}] — ${d.text(1)}${fz}`);
     }
-  });  console.log(`\nCommands: buy <shop> <slot> · sell <slot> · move <from> <to> · order <slots...> · reroll · freeze <shop> · relic <n> · fight · hint · help`);
+  });  console.log(`\nCommands: buy <shop> <slot> · sell <slot> · move <from> <to> · give <from> <to> · sellitem <slot|pocket> · order <slots...> · reroll · freeze <shop> · relic <n> · fight · hint · help`);
 }
 
 // After an action: what happened, then just enough to plan the next one.
 function brief(s: Save, what: string) {
   const st = s.st;
   console.log(`${what}\n${header(st)}`);
-  console.log(`  team: ${st.team.map((u, i) => `${i} ${u.kind ? `${nm(u.kind)} ${stats(u)}${levelOf(u.xp) > 1 ? ` L${levelOf(u.xp)}` : ''}${u.item ? ` +${nm(u.item)}` : ''}` : '-'}`).join(' · ')}`);
+  console.log(`  team: ${st.team.map((u, i) => `${i} ${u.kind ? `${nm(u.kind)} ${stats(u)}${levelOf(u.xp) > 1 ? ` L${levelOf(u.xp)}` : ''}${u.item ? ` +${nm(u.item)}` : ''}` : '-'}`).join(' · ')}${st.pocket ? ` · pocket ${nm(st.pocket)}` : ''}`);
   console.log(`  shop: ${st.shop.map((x, i) => x.kind ? `${i} ${x.isItem ? 'item ' : ''}${nm(x.kind)}${x.isItem ? '' : ` ${stats(x)}`}${x.frozen ? ' (frozen)' : ''}` : '').filter(Boolean).join(' · ') || '(empty)'}`);
   if (st.relicChoices.length) console.log(`  choose a relic: ${st.relicChoices.map((r, i) => `${i} ${RELICS[r].name}`).join(' · ')}`);
 }
@@ -208,7 +213,7 @@ function act(s: Save) {
       shop.buy(st, rng, si, ti);
       const u = st.team[ti];
       if (offer?.isItem) {
-        const replaced = ITEMS[offer.kind].held && before?.item && before.item !== offer.kind ? ` (replaced its ${nm(before.item)})` : '';
+        const replaced = ITEMS[offer.kind].held && before?.item ? ` (its ${nm(before.item)} ${st.pocket === before.item ? 'went to the pocket' : 'was sold for 1 gold'})` : '';
         what = `${nm(offer.kind)} → ${nm(u.kind)} in slot ${ti}, now ${stats(u)}${replaced}.`;
       } else if (before?.kind) {
         const L0 = levelOf(before.xp), L1 = levelOf(u.xp);
@@ -223,6 +228,12 @@ function act(s: Save) {
     } else if (cmd === 'move') {
       shop.move(st, rng, num(0, 'from'), num(1, 'to'));
       what = 'Moved.';
+    } else if (cmd === 'give') {
+      shop.moveItem(st, spot(0), spot(1));
+      what = 'Handed over.';
+    } else if (cmd === 'sellitem') {
+      shop.sellItem(st, spot(0));
+      what = 'Sold the item for 1 gold.';
     } else if (cmd === 'order') {
       const want = rest.map((_, i) => num(i, 'a team slot'));
       if (new Set(want).size !== want.length || want.some(i => i < 0 || i >= st.team.length)) fail('order takes distinct team slots');
@@ -238,7 +249,7 @@ function act(s: Save) {
       const r = st.relicChoices[num(0, 'a relic')];
       shop.chooseRelic(st, num(0, 'a relic'));
       what = `Took ${nm(r)}: ${RELICS[r].text}`;
-    } else fail(`unknown command "${cmd}". Commands: new show buy sell move order reroll freeze relic fight hint note diary help`);
+    } else fail(`unknown command "${cmd}". Commands: new show buy sell move give sellitem order reroll freeze relic fight hint note diary help`);
   } catch (e) { fail((e as Error).message); }
   s.rng = rng.a;
   store(s);

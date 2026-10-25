@@ -60,6 +60,7 @@ export interface RunState {
   nextUid: number;
   bonusGold: number; // gold added at the start of next turn
   rerolls: number; // rerolls used this turn
+  pocket: string; // one loose item waiting for a new holder; '' = empty
 }
 
 export const START_LIVES = 5;
@@ -89,3 +90,4 @@ export const shopUnitSlots = (round: number) => (round < 5 ? 3 : round < 9 ? 4 :
 export const shopItemSlots = (round: number) => (round < 5 ? 1 : 2);
 export const teamSlots = (relics: readonly string[]) => BASE_SLOTS + (relics.includes('sixth') ? 1 : 0);
 export const sellValue = (u: Unit) => levelOf(u.xp);
+export const ITEM_SELL = 1;
