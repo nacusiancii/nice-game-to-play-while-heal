@@ -68,19 +68,28 @@ fast, and Sixth Seat gives you room for one more misfit.
   last entry. Before they leave, the Market asks them once: are these pages still true?
   (`.claude/hooks/ledger.py`; run it with `check` to see the same report.)
 
-## Page 6: Known cracks in the walls
+## Page 6: The complaints box
+
+Every player gets a **"huh?" button**: press H, mutter a word or two, keep playing. The Market keeps
+the exact moment it was muttered in (the run, the screen, the battle frame, the last few things
+you did) and can lay it out again like it never left (`?moment=<id>`).
+
+When a session ends, all its mutterings go to one fresh agent together, who reads them side by
+side, fixes the small things in its own corner of the dungeon, and reports back
+(`playtest/TRIAGE.md`). A real bug doesn't wait for the session to end. We judge a fix by whether
+the "huh?"s about it stop coming.
+
+## Page 7: Known cracks in the walls
 
 - **No undo.** In the very first playtest, a click meant for an item sold the whole front line.
   The front line has not forgiven us.
 - **Difficulty against a real human is untested.** The early rounds are probably a gentle stroll.
 - **The bots are simple.** Ghost opponents get truly interesting only once real runs pile up.
 
-## Page 7: Scribbled on the back
+## Page 8: Scribbled on the back
 
 Ideas for when the fever is gone:
 
-- A **"huh?" button** in the game that saves your note, a screenshot and the exact run, so the
-  Market can see exactly what went wrong.
 - **Undo** for the last shop action. (For the front line.)
 - **Friends' ghosts** and live async PvP. Your rabble against theirs.
 - **Smarter bots** that play like someone with a few runs and some opinions.

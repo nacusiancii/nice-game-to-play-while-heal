@@ -90,7 +90,27 @@ const hall = table(
   }
 );
 
-const spacetimedb = schema({ player, run, battle, ghost, hall });
+// Playtest reactions: a few words plus the exact moment they were said in.
+// run and battles (the player's last few replays, oldest first) are JSON snapshots taken by the
+// server; view is what the client was showing (screen, selection, battle id and frame) and the
+// trail of what the player had just done.
+// Public on purpose: the replay page reads a moment by id over plain HTTP SQL.
+const reaction = table(
+  { name: 'reaction', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    owner: t.identity(),
+    name: t.string(),
+    at: t.timestamp(),
+    text: t.string(),
+    round: t.u32(),
+    run: t.string(),
+    battles: t.string(),
+    view: t.string(),
+  }
+);
+
+const spacetimedb = schema({ player, run, battle, ghost, hall, reaction });
 export default spacetimedb;
 
 // Players only see their own run and replays.
@@ -274,6 +294,25 @@ export const fightGhost = spacetimedb.reducer(ctx => {
 export const abandonRun = spacetimedb.reducer(ctx => {
   if (ctx.db.run.owner.find(ctx.sender)) ctx.db.run.owner.delete(ctx.sender);
   for (const b of [...ctx.db.battle.owner.filter(ctx.sender)]) ctx.db.battle.id.delete(b.id);
+});
+
+// Save a playtest reaction with a snapshot of the moment. battleId is the replay the player was
+// watching (0 = none); the run row alone can't say, since it is already post-battle. The other
+// recent battles come along too: "huh? lost again" is usually about a battle no longer on screen.
+export const react = spacetimedb.reducer({ text: t.string(), battleId: t.u64(), view: t.string() }, (ctx, { text, battleId, view }) => {
+  const clean = text.trim().slice(0, 280);
+  if (!clean) throw new SenderError('Say a word or two');
+  const p = ensurePlayer(ctx);
+  const r = ctx.db.run.owner.find(ctx.sender);
+  const battles = [...ctx.db.battle.owner.filter(ctx.sender)].sort((a, b) => a.seq - b.seq);
+  const watched = battles.find(b => b.id === battleId);
+  const json = (x: unknown) => JSON.stringify(x, (_k, v) => (typeof v === 'bigint' ? v.toString() : v));
+  ctx.db.reaction.insert({
+    id: 0n, owner: ctx.sender, name: p.name, at: ctx.timestamp, text: clean, round: watched?.round ?? r?.round ?? 0,
+    run: r ? json({ ...r, owner: undefined }) : '',
+    battles: json(battles.map(b => ({ ...b, owner: undefined }))),
+    view: view.slice(0, 20000),
+  });
 });
 
 // Top up the ghost pool (the database owner can call this from the CLI).

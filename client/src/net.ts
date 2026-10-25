@@ -1,9 +1,11 @@
 // Connection to the SpacetimeDB module and a tiny reactive store over its tables.
 import { DbConnection } from './module_bindings';
 import type { Battle, Hall, Player, Run } from './module_bindings/types';
+import { UNITS, ITEMS } from '../../server/src/game/data';
+import { emit as announce } from './events';
 
-const URI = import.meta.env.VITE_STDB_URI ?? `ws://${location.hostname || '127.0.0.1'}:3000`;
-const DB = import.meta.env.VITE_STDB_DB ?? 'rabble-below';
+export const URI = import.meta.env.VITE_STDB_URI ?? `ws://${location.hostname || '127.0.0.1'}:3000`;
+export const DB = import.meta.env.VITE_STDB_DB ?? 'rabble-below';
 const TOKEN_KEY = 'rabble-below/token';
 
 export interface Store {
@@ -76,24 +78,40 @@ export function connect() {
 }
 
 // Reducer calls. Errors (rule violations) come back as rejected promises.
+// Every call is also announced as an event, in words ("sell Skeleton (slot 1)").
 type Err = (msg: string) => void;
 let onError: Err = () => {};
 export const setErrorHandler = (f: Err) => { onError = f; };
-const call = (p: Promise<void> | undefined) => p?.catch(e => onError(cleanErr(e)));
+let readOnly = '';
+export const setReadOnly = (why: string) => { readOnly = why; };
+const call = (what: string, p: () => Promise<void> | undefined) => {
+  announce('call', what);
+  if (readOnly) { onError(readOnly); return; }
+  return p()?.catch(e => { const m = cleanErr(e); announce('rejected', m); onError(m); });
+};
 function cleanErr(e: unknown) {
   const s = e instanceof Error ? e.message : String(e);
   return s.replace(/^.*SenderError:\s*/, '').replace(/^(Error:\s*)+/, '');
 }
 
+const unitName = (i: number) => { const u = store.run?.team[i]; return u?.kind ? `${UNITS[u.kind]?.name ?? u.kind} (slot ${i})` : `empty slot ${i}`; };
+const shopName = (i: number) => {
+  const s = store.run?.shop[i];
+  return s?.kind ? `${(s.isItem ? ITEMS[s.kind]?.name : UNITS[s.kind]?.name) ?? s.kind} (shop ${i})` : `empty shop ${i}`;
+};
+
 export const api = {
-  startRun: () => call(conn?.reducers.startRun({})),
-  abandonRun: () => call(conn?.reducers.abandonRun({})),
-  buy: (shopIdx: number, teamIdx: number) => call(conn?.reducers.buyFromShop({ shopIdx, teamIdx })),
-  sell: (teamIdx: number) => call(conn?.reducers.sellUnit({ teamIdx })),
-  move: (from: number, to: number) => call(conn?.reducers.moveUnit({ from, to })),
-  reroll: () => call(conn?.reducers.reroll({})),
-  freeze: (shopIdx: number) => call(conn?.reducers.toggleFreeze({ shopIdx })),
-  relic: (idx: number) => call(conn?.reducers.chooseRelic({ idx })),
-  fight: () => call(conn?.reducers.fightGhost({})),
-  setName: (name: string) => call(conn?.reducers.setName({ name })),
+  startRun: () => call('start run', () => conn?.reducers.startRun({})),
+  abandonRun: () => call('abandon run', () => conn?.reducers.abandonRun({})),
+  buy: (shopIdx: number, teamIdx: number) => call(`buy ${shopName(shopIdx)} onto ${unitName(teamIdx)}`, () => conn?.reducers.buyFromShop({ shopIdx, teamIdx })),
+  sell: (teamIdx: number) => call(`sell ${unitName(teamIdx)}`, () => conn?.reducers.sellUnit({ teamIdx })),
+  move: (from: number, to: number) => call(`move ${unitName(from)} onto ${unitName(to)}`, () => conn?.reducers.moveUnit({ from, to })),
+  reroll: () => call('reroll', () => conn?.reducers.reroll({})),
+  freeze: (shopIdx: number) => call(`${store.run?.shop[shopIdx]?.frozen ? 'unfreeze' : 'freeze'} ${shopName(shopIdx)}`, () => conn?.reducers.toggleFreeze({ shopIdx })),
+  relic: (idx: number) => call(`pick relic ${store.run?.relicChoices[idx] ?? idx}`, () => conn?.reducers.chooseRelic({ idx })),
+  fight: () => call('fight', () => conn?.reducers.fightGhost({})),
+  setName: (name: string) => call(`rename to ${name}`, () => conn?.reducers.setName({ name })),
+  // not part of play, so it isn't announced
+  react: (text: string, battleId: bigint, view: string): Promise<boolean> =>
+    conn ? conn.reducers.react({ text, battleId, view }).then(() => true, e => { onError(cleanErr(e)); return false; }) : Promise.resolve(false),
 };
