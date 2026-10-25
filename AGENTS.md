@@ -39,7 +39,8 @@ This isn't a convention you have to remember. It's enforced:
 - Your sandbox server signs its own tokens. They are rejected by Krishna's server, and his are rejected by
   yours (`401 InvalidSignature`), even though both carry the same owner identity.
 - Krishna's database is owned by an identity kept in `~/.config/rabble-below/prod-cli.toml`, which only
-  `play.sh` uses. The default `spacetimedb-cli` identity gets `403` if it tries to publish to it or wipe it.
+  `play.sh` uses. Until the default `spacetimedb-cli` identity is rotated (an Open item in `~/setup`), it
+  still owns his database too: a bare `spacetimedb-cli publish --server local` would land on his game.
 - Krishna's database is locked, so nothing can wipe or delete it until someone deliberately unlocks it.
 - `play.sh` refuses to run in a worktree, and refuses to reuse a :3000 server that isn't serving its data.
 - Before every publish, `play.sh` backs up his data to `.stdb-backups/` (last 5 kept).
