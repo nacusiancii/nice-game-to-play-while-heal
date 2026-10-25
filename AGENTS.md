@@ -12,4 +12,4 @@ There are two copies of the game on this machine.
 Shipping to Krishna: `./sandbox rehearse` (his data, your code), then a PR to `main` (ask him first). After it
 merges, he runs `./play.sh`, which backs up his data before publishing.
 
-Balance questions rarely need a server: `cd tools && npx tsx sim.ts 400 7` plays a headless bot league.
+Balance questions rarely need a server: `cd tools && npx tsx sim.ts 400 7` plays a headless bot league; `./veteran` and `./play` go deeper (README, Balancing).

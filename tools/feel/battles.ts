@@ -2,8 +2,7 @@
 import { levelOf, mulberry32, type Rng, type Unit } from '../../server/src/game/core';
 import { RELICS, UNITS } from '../../server/src/game/data';
 import { fight, type Side } from '../../server/src/game/battle';
-import { afterBattle, endTurn, newRun } from '../../server/src/game/shop';
-import { botTurn, randomStyle } from '../../server/src/game/bot';
+import { botRun } from '../../server/src/game/bot';
 
 export interface BattleSpec {
   seed?: number;
@@ -17,15 +16,10 @@ export interface BattleSpec {
 
 // What a bot fields at `round`, drawing on the shared shop and bot code.
 function botSide(rng: Rng, round: number): Side {
-  const st = newRun(rng);
-  const style = randomStyle(rng);
-  for (;;) {
-    botTurn(st, rng, style);
-    endTurn(st, rng);
-    if (st.round >= round) break;
-    afterBattle(st, rng, -1); // draws keep every bot alive until the round we want
-  }
-  return { team: st.team, relics: st.relics, gold: st.gold };
+  let side: Side = { team: [], relics: [], gold: 0 };
+  // draws keep every bot alive until the round we want
+  botRun(rng, st => { if (st.round === round) side = structuredClone({ team: st.team, relics: st.relics, gold: st.gold }); return -1; }, round);
+  return side;
 }
 
 // "kind[:atk/hp][@lvl][+item]", comma separated, front unit first.

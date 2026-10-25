@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs play.ts with the local tsx (npm install once in tools/).
+d=$(dirname "$0")
+exec "$d/node_modules/.bin/tsx" "$d/play.ts" "$@"

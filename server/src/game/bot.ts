@@ -1,7 +1,7 @@
 // A simple shop AI. Used to seed ghost opponents so a fresh server has rivals to fight.
 import { UNIT_COST, levelOf, pick, type Rng, type RunState, type Unit } from './core';
 import { ITEMS, UNITS } from './data';
-import { buy, chooseRelic, itemCost, reroll, sell } from './shop';
+import { afterBattle, buy, chooseRelic, endTurn, itemCost, newRun, reroll, sell } from './shop';
 
 const power = (u: { atk: number; hp: number }) => u.atk + u.hp;
 
@@ -108,3 +108,16 @@ function frontScore(u: Unit) {
   return s;
 }
 
+
+// One whole bot run, round by round. Each turn the bot shops, then `battle` gets the team as it enters the
+// fight (and can save it as a ghost) and says who won: 0 the bot, 1 its opponent, -1 a draw.
+export function botRun(rng: Rng, battle: (st: RunState) => 0 | 1 | -1, maxRound = 18): RunState {
+  const st = newRun(rng);
+  const style = randomStyle(rng);
+  while (st.status === 'shop' && st.round <= maxRound) {
+    botTurn(st, rng, style);
+    endTurn(st, rng);
+    afterBattle(st, rng, battle(st));
+  }
+  return st;
+}
