@@ -41,6 +41,9 @@ that sounds like a bug ("bug", "stuck", "broken"…) goes out at once as its own
   On first publish the module seeds ~50 bot runs so there is always someone to fight.
 - `client/` is a small Vite + vanilla TypeScript app. It subscribes to its own run, replays battles from the
   recorded frames, and calls reducers for every action.
+- `tools/feel/` lets an agent watch a moment of the game frame by frame: motion, timing, flicker, how long a fight
+  drags. `tools/feel/feel record battle round=8` or `tools/feel/feel record first-turn`, then `feel look`.
+  See [tools/feel/README.md](tools/feel/README.md).
 - `tools/sim.ts` runs a headless bot league and prints win rates per unit, tribe and relic:
   `cd tools && npm install && npx tsx sim.ts 400 7`.
 
