@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // sandbox: a private copy of Rabble Below for agents to break, restart and reset freely.
 //
-// Each sandbox lives in .sandbox/<name>/ inside its checkout and has its own SpacetimeDB process, data,
+// The sandbox lives in .sandbox/ inside its checkout and has its own SpacetimeDB process, data,
 // ports, client build and signing key. Tokens are minted with that key, so they are worthless against
 // Krishna's game on :3000, and Krishna's tokens are worthless here. Run `./sandbox help` for commands.
 'use strict';
@@ -14,20 +14,15 @@ const os = require('os');
 const ROOT = __dirname;
 const DB = 'rabble-below';
 const PROD_PORTS = [3000, 5173];
-const PROD_CFG = path.join(os.homedir(), '.config/rabble-below/prod-cli.toml');
-const DEFAULT_CFG = path.join(os.homedir(), '.config/spacetime/cli.toml');
+// The default CLI identity owns Krishna's game. Sandbox tokens carry it, so a copy of his data is owned here too.
+const OWNER_CFG = path.join(os.homedir(), '.config/spacetime/cli.toml');
 
 const argv = process.argv.slice(2);
 const flag = f => { const i = argv.indexOf(f); return i >= 0 && argv.splice(i, 1).length > 0; };
-const opt = f => { const i = argv.indexOf(f); return i >= 0 ? argv.splice(i, 2)[1] : undefined; };
-// -n <name> only counts before the command, so `./sandbox logs -n 50` still reaches the CLI.
-const NAME = argv[0] === '-n' ? argv.splice(0, 2)[1] ?? '' : 'default';
-if (!/^[a-z0-9-]+$/.test(NAME)) die(`sandbox names are lowercase letters, digits and dashes (got "${NAME}")`);
-const DIR = path.join(ROOT, '.sandbox', NAME);
-const ME = NAME === 'default' ? './sandbox' : `./sandbox -n ${NAME}`; // how to address this sandbox in hints
+const DIR = path.join(ROOT, '.sandbox');
 const F = {
   data: path.join(DIR, 'data'), keys: path.join(DIR, 'keys'), cfg: path.join(DIR, 'cli.toml'),
-  state: path.join(DIR, 'state.json'), dist: path.join(DIR, 'dist'), snaps: path.join(DIR, 'snapshots'),
+  state: path.join(DIR, 'state.json'), dist: path.join(DIR, 'dist'),
   serverLog: path.join(DIR, 'server.log'), webLog: path.join(DIR, 'web.log'),
 };
 
@@ -54,7 +49,7 @@ function stdbBin() {
 function cli(args, o) {
   const port = state().stdbPort;
   const cfg = fs.existsSync(F.cfg) ? fs.readFileSync(F.cfg, 'utf8') : '';
-  if (!port || !cfg.includes(`host = "127.0.0.1:${port}"`)) die(`sandbox "${NAME}" has no config for its server; run \`${ME} up\``);
+  if (!port || !cfg.includes(`host = "127.0.0.1:${port}"`)) die('the sandbox has no config for its server; run `./sandbox up`');
   return run(stdbBin(), ['--config-path', F.cfg, ...args], o);
 }
 
@@ -68,11 +63,6 @@ const sleep = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0,
 const ping = port => run('curl', ['-s', '-o', '/dev/null', '-m', '1', `http://127.0.0.1:${port}/v1/ping`], { quiet: true, check: false }).status === 0;
 const listening = () => new Set(run('ss', ['-Hltn'], { quiet: true }).stdout.split('\n')
   .map(l => +(l.split(/\s+/)[3] || '').split(':').pop()).filter(Boolean));
-function ago(ms) {
-  if (ms == null) return '-';
-  const s = Math.round((Date.now() - ms) / 1000);
-  return s < 90 ? `${s}s ago` : s < 5400 ? `${Math.round(s / 60)}m ago` : s < 129600 ? `${Math.round(s / 3600)}h ago` : `${Math.round(s / 86400)}d ago`;
-}
 function rmrf(p) { fs.rmSync(p, { recursive: true, force: true }); }
 function copyData(from, to) {
   rmrf(to);
@@ -80,42 +70,9 @@ function copyData(from, to) {
   rmrf(path.join(to, 'spacetime.pid'));
 }
 
-// ---------- checkouts, prod and other sandboxes ----------
-function checkouts() {
-  const out = run('git', ['worktree', 'list', '--porcelain'], { quiet: true }).stdout;
-  return out.trim().split('\n\n').map((b, i) => ({
-    path: b.match(/^worktree (.*)$/m)[1],
-    branch: (b.match(/^branch refs\/heads\/(.*)$/m) || [, '(detached)'])[1],
-    main: i === 0,
-  }));
-}
-const prodDir = () => path.join(checkouts()[0].path, '.stdb-data');
-function allSandboxes() {
-  const list = [];
-  for (const c of checkouts()) {
-    const base = path.join(c.path, '.sandbox');
-    for (const n of fs.existsSync(base) ? fs.readdirSync(base) : []) {
-      const dir = path.join(base, n);
-      if (fs.existsSync(path.join(dir, 'state.json'))) list.push({ checkout: c, name: n, dir, state: readJson(path.join(dir, 'state.json'), {}) });
-    }
-  }
-  return list;
-}
-function lastWrite(dataDir) {
-  let t = null;
-  const reps = path.join(dataDir, 'replicas');
-  for (const r of fs.existsSync(reps) ? fs.readdirSync(reps) : []) {
-    const clog = path.join(reps, r, 'clog');
-    for (const f of fs.existsSync(clog) ? fs.readdirSync(clog) : []) t = Math.max(t ?? 0, fs.statSync(path.join(clog, f)).mtimeMs);
-  }
-  return t;
-}
-const clients = port => run('ss', ['-Htn', 'state', 'established', `( sport = :${port} )`], { quiet: true }).stdout.split('\n').filter(Boolean).length;
-function rssMb(pids) {
-  let kb = 0;
-  for (const pid of pids) { try { kb += +fs.readFileSync(`/proc/${pid}/status`, 'utf8').match(/VmRSS:\s+(\d+)/)[1]; } catch {} }
-  return Math.round(kb / 1024);
-}
+// ---------- Krishna's game ----------
+// The main checkout is the first entry of `git worktree list`; its .stdb-data is the game Krishna plays.
+const prodDir = () => path.join(run('git', ['worktree', 'list', '--porcelain'], { quiet: true }).stdout.match(/^worktree (.*)$/m)[1], '.stdb-data');
 
 // ---------- keys and tokens ----------
 // Sandbox servers verify tokens with their own key. We mint a token carrying the prod owner's identity
@@ -132,8 +89,7 @@ function ensureKeys() {
   fs.writeFileSync(path.join(F.keys, 'id_ecdsa.pub'), publicKey);
 }
 function ownerClaims() {
-  const f = fs.existsSync(PROD_CFG) ? PROD_CFG : DEFAULT_CFG;
-  const tok = fs.existsSync(f) && fs.readFileSync(f, 'utf8').match(/spacetimedb_token\s*=\s*"([^"]+)"/)?.[1];
+  const tok = fs.existsSync(OWNER_CFG) && fs.readFileSync(OWNER_CFG, 'utf8').match(/spacetimedb_token\s*=\s*"([^"]+)"/)?.[1];
   if (!tok) return null;
   const { iss, sub, hex_identity, aud } = JSON.parse(Buffer.from(tok.split('.')[1], 'base64url'));
   return { iss, sub, hex_identity, aud };
@@ -164,8 +120,7 @@ function ensureToken(port) {
 function pickPorts() {
   const s = state();
   const taken = listening();
-  const claimed = new Set(allSandboxes().filter(x => x.dir !== DIR).flatMap(x => [x.state.stdbPort, x.state.webPort]));
-  const ok = p => !PROD_PORTS.includes(p) && !claimed.has(p) && !taken.has(p);
+  const ok = p => !PROD_PORTS.includes(p) && !taken.has(p);
   if (s.stdbPort && (ok(s.stdbPort) || alive(s.stdbPid, F.data)) && (ok(s.webPort) || alive(s.webPid, F.dist))) return s;
   for (let i = 0; i < 100; i++) if (ok(3100 + i) && ok(5200 + i)) return { ...s, stdbPort: 3100 + i, webPort: 5200 + i };
   die('no free ports in 3100-3199 / 5200-5299');
@@ -236,7 +191,7 @@ function publish() {
   const r = cli(['publish', DB, '-y', '--module-path', 'server'], { quiet: true, check: false });
   if (r.status !== 0) {
     process.stderr.write(r.stdout + r.stderr);
-    die(`publish failed. If this is a breaking schema change, \`${ME} up --fresh\` wipes the sandbox data.`);
+    die(`publish failed. If this is a breaking schema change, \`./sandbox up --fresh\` wipes the sandbox data.`);
   }
 }
 function buildClient(s) {
@@ -245,7 +200,6 @@ function buildClient(s) {
     cwd: path.join(ROOT, 'client'),
     env: { npm_config_loglevel: 'error', VITE_STDB_URI: `ws://127.0.0.1:${s.stdbPort}`, VITE_STDB_DB: DB },
   });
-  saveState({ ...state(), distPort: s.stdbPort });
 }
 function wipeData() { stopServer(); rmrf(F.data); }
 function counts() {
@@ -253,7 +207,7 @@ function counts() {
   return `${q('player')} players, ${q('run')} active runs, ${q('ghost')} ghosts, ${q('hall')} hall entries`;
 }
 function summary(s) {
-  say(`\n  sandbox "${NAME}" is up`);
+  say('\n  sandbox is up');
   say(`  game:     http://127.0.0.1:${s.webPort}`);
   say(`  database: ws://127.0.0.1:${s.stdbPort}  (${DB})`);
   say(`  data:     ${counts()}\n`);
@@ -270,148 +224,60 @@ const commands = {
     buildClient(s);
     summary(startWeb(state()));
   },
-  reset() {
-    const fromProd = flag('--prod');
-    const snap = argv.shift();
-    if (snap && !fs.existsSync(path.join(F.snaps, snap))) die(`no snapshot "${snap}". Have: ${snapshots().join(', ') || 'none'}`);
-    deps();
-    wipeData();
-    if (fromProd) {
-      if (!fs.existsSync(prodDir())) die(`Krishna's game has no data yet (${prodDir()})`);
-      say(`Copying Krishna's data from ${prodDir()} (read only; his game keeps running)…`);
-      copyData(prodDir(), F.data); // a plain file copy, works while it runs
-    } else if (snap) copyData(path.join(F.snaps, snap), F.data);
-    const s = startServer();
-    if (fromProd) cli(['unlock', DB], { quiet: true, check: false });
-    if (!fromProd && !snap) publish();
-    if (state().distPort !== s.stdbPort || !fs.existsSync(path.join(F.dist, 'index.html'))) buildClient(s);
-    startWeb(state());
-    say(fromProd ? `Sandbox now holds a copy of Krishna's data, running his published code. \`${ME} up\` puts your code on top.`
-      : snap ? `Restored "${snap}" exactly as saved, including the module it ran. \`${ME} up\` puts your current code on top.`
-        : 'Fresh database with seeded bots.');
-    summary(state());
-  },
   rehearse() {
     // Dress rehearsal for shipping: Krishna's data, your code. If this passes, `./play.sh` will too.
-    argv.unshift('--prod');
-    commands.reset();
+    if (!fs.existsSync(prodDir())) die(`Krishna's game has no data yet (${prodDir()})`);
+    deps();
+    wipeData();
+    say(`Copying Krishna's data from ${prodDir()} (read only; his game keeps running)…`);
+    copyData(prodDir(), F.data);
+    startServer();
+    cli(['unlock', DB], { quiet: true, check: false });
     say('Publishing this checkout\'s code over the copy…');
     publish();
     buildClient(state());
+    startWeb(state());
     say('Rehearsal passed: your code migrates cleanly onto a copy of Krishna\'s data.');
     summary(state());
   },
-  save() {
-    const snap = argv.shift() || new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-    if (!/^[\w.-]+$/.test(snap)) die('snapshot names are letters, digits, dots, dashes and underscores');
-    if (!fs.existsSync(F.data)) die(`nothing to save yet; run \`${ME} up\``);
-    fs.mkdirSync(F.snaps, { recursive: true });
-    copyData(F.data, path.join(F.snaps, snap));
-    say(`Saved snapshot "${snap}". Restore it any time with \`${ME} reset ${snap}\`.`);
-  },
   down() {
-    if (flag('--all')) {
-      // Every sandbox in every checkout: for when the laptop needs its RAM back. Krishna's game isn't a sandbox.
-      let n = 0;
-      for (const x of allSandboxes()) {
-        const a = kill(x.state.stdbPid, path.join(x.dir, 'data')), b = kill(x.state.webPid, path.join(x.dir, 'dist'));
-        if (a || b) { n++; say(`Stopped sandbox "${x.name}" in ${path.basename(x.checkout.path)}.`); }
-      }
-      return say(n ? 'Data is kept; `./sandbox up` brings one back.' : 'No sandboxes were running.');
-    }
-    const pid = opt('--pid');
-    if (pid) {
-      // For orphans, e.g. a sandbox whose worktree was deleted. Refuses anything that isn't a sandbox.
-      const own = (cmdline(+pid) || []).find(a => /\/\.sandbox\/[^/]+\/(data|dist)$/.test(a));
-      if (!own) die(`pid ${pid} is not a sandbox server; not touching it`);
-      kill(+pid, own);
-      return say(`Stopped ${pid}.`);
-    }
     const s = state();
     const a = kill(s.stdbPid, F.data), b = kill(s.webPid, F.dist);
     delete s.stdbPid; delete s.webPid;
     if (fs.existsSync(F.state)) saveState(s);
-    say(a || b ? `Stopped sandbox "${NAME}". Data stays in ${path.relative(ROOT, DIR)}/.` : `Sandbox "${NAME}" was not running.`);
+    say(a || b ? `Stopped the sandbox. Data stays in ${path.relative(ROOT, DIR)}/.` : 'The sandbox was not running.');
   },
-  ls() {
-    const rows = [['', 'WHO', 'CHECKOUT', 'BRANCH', 'DB', 'WEB', 'RAM', 'LAST WRITE', 'CLIENTS']];
-    const known = new Set();
-    // Krishna's game: whatever listens on :3000. It's only "prod" if it serves the main checkout's data.
-    const prod = run('ss', ['-Hltnp', '( sport = :3000 )'], { quiet: true }).stdout.match(/pid=(\d+)/)?.[1];
-    const main = checkouts()[0];
-    const pd = prodDir();
-    const prodPid = fs.existsSync(path.join(pd, 'spacetime.pid')) ? fs.readFileSync(path.join(pd, 'spacetime.pid'), 'utf8').trim() : null;
-    if (prod) known.add(+prod);
-    const web = run('ss', ['-Hltnp', '( sport = :5173 )'], { quiet: true }).stdout.match(/pid=(\d+)/)?.[1];
-    rows.push([prod ? '●' : '○', prod && prod !== prodPid ? 'NOT PROD ⚠' : 'prod (Krishna)', path.basename(main.path), main.branch,
-      prod ? ':3000' : '-', web ? ':5173' : '-', prod ? `${rssMb([prod, web].filter(Boolean))}MB` : '-',
-      ago(lastWrite(pd)), prod ? String(clients(3000)) : '-']);
-    for (const x of allSandboxes()) {
-      const s = x.state, data = path.join(x.dir, 'data'), up = alive(s.stdbPid, data);
-      const webUp = alive(s.webPid, path.join(x.dir, 'dist'));
-      known.add(s.stdbPid);
-      const snaps = fs.existsSync(path.join(x.dir, 'snapshots')) ? fs.readdirSync(path.join(x.dir, 'snapshots')) : [];
-      rows.push([up ? '●' : '○', `sandbox ${x.name}${x.dir === DIR ? ' (you)' : ''}${snaps.length ? ` [${snaps.length} saved]` : ''}`,
-        path.basename(x.checkout.path), x.checkout.branch, up ? `:${s.stdbPort}` : '-', webUp ? `:${s.webPort}` : '-',
-        up || webUp ? `${rssMb([up && s.stdbPid, webUp && s.webPid].filter(Boolean))}MB` : '-', ago(lastWrite(data)),
-        up ? String(clients(s.stdbPort)) : '-']);
-    }
-    for (const line of run('pgrep', ['-a', '-f', 'spacetimedb-standalone start'], { quiet: true, check: false }).stdout.split('\n').filter(Boolean)) {
-      const pid = +line.split(' ')[0];
-      if (known.has(pid)) continue;
-      const args = cmdline(pid) || [];
-      let cwd = '/';
-      try { cwd = fs.readlinkSync(`/proc/${pid}/cwd`); } catch {}
-      const dataDir = path.resolve(cwd, args[args.lastIndexOf('--data-dir') + 1] || '?');
-      const addr = args[args.lastIndexOf('--listen-addr') + 1] || '?';
-      const owner = checkouts().find(c => dataDir.startsWith(c.path + '/'));
-      rows.push(['●', `not a sandbox, pid ${pid}`, owner ? path.basename(owner.path) : dataDir.replace(os.homedir(), '~'),
-        owner ? owner.branch : '', addr.replace(/.*:/, ':'), '', `${rssMb([pid])}MB`, ago(lastWrite(dataDir)), '']);
-    }
-    const w = rows[0].map((_, i) => Math.max(...rows.map(r => r[i].length)));
-    for (const r of rows) say(r.map((c, i) => c.padEnd(w[i])).join('  ').trimEnd());
-    if (prod && prod !== prodPid) say('\n⚠ Something other than Krishna\'s game holds :3000. play.sh will refuse to start until it stops.');
-  },
-  status() { commands.ls(); },
   env() {
     const s = state();
-    if (!s.stdbPort) die(`no sandbox yet; run \`${ME} up\``);
-    say(`export SANDBOX_NAME=${NAME}\nexport SANDBOX_WEB=http://127.0.0.1:${s.webPort}\nexport SANDBOX_STDB=ws://127.0.0.1:${s.stdbPort}\nexport SANDBOX_DB=${DB}\nexport SANDBOX_DIR=${DIR}`);
+    if (!s.stdbPort) die('no sandbox yet; run `./sandbox up`');
+    say(`export SANDBOX_WEB=http://127.0.0.1:${s.webPort}\nexport SANDBOX_STDB=ws://127.0.0.1:${s.stdbPort}\nexport SANDBOX_DB=${DB}\nexport SANDBOX_DIR=${DIR}`);
   },
-  url() { const s = state(); if (!s.webPort) die(`no sandbox yet; run \`${ME} up\``); say(`http://127.0.0.1:${s.webPort}`); },
   sql() { needUp(); quietCli(['sql', DB, argv.join(' ')]); },
   call() {
     needUp();
     quietCli(['call', DB, ...argv]);
-    if (!process.exitCode) say(`ok: ${argv[0]} ran. Check its effect with ${ME} sql "SELECT * FROM run".`);
+    if (!process.exitCode) say(`ok: ${argv[0]} ran. Check its effect with ./sandbox sql "SELECT * FROM run".`);
   },
-  tables() { needUp(); quietCli(['describe', DB]); },
   logs() { needUp(); quietCli(['logs', DB, ...(argv.length ? argv : ['-n', '50'])]); },
   cli() { needUp(); process.exitCode = cli(argv, { check: false }).status; },
   help() {
-    say(`Your own copy of Rabble Below. Break it, reset it, nobody else notices.
+    say(`Your own copy of Rabble Below. Break it, wipe it, nobody else notices.
 
-  ./sandbox up [--fresh]     start (or update) your sandbox with this checkout's code; --fresh wipes data first
-  ./sandbox reset            wipe to a fresh database with seeded bots
-  ./sandbox reset <snap>     go back to a saved snapshot
-  ./sandbox reset --prod     copy Krishna's current data into your sandbox (his game is only read)
-  ./sandbox save [snap]      snapshot your sandbox's data
+  ./sandbox up [--fresh]     start your sandbox, or apply this checkout's latest code; --fresh wipes data first
   ./sandbox rehearse         copy Krishna's data, then publish your code on top: proves shipping is safe
-                             (replaces your sandbox's data; save first if you want it back)
-  ./sandbox sql "<query>"    query your sandbox (aggregates need an alias: SELECT COUNT(*) AS n FROM ghost)
-  ./sandbox tables           the schema: tables, columns, reducers
+                             (replaces your sandbox's data)
+  ./sandbox sql "<query>"    query it (aggregates need an alias: SELECT COUNT(*) AS n FROM ghost)
   ./sandbox call <reducer> [args]   e.g. ./sandbox call buy_from_shop 0 0
-  ./sandbox logs [-n 50]     module logs                   ./sandbox cli <spacetimedb-cli args>
-  ./sandbox env | url        URLs for scripts and browsers
-  ./sandbox ls               everything running on this machine: Krishna's game, every sandbox, RAM, activity
-  ./sandbox down             stop your sandbox (data is kept)
-  ./sandbox down --all       stop every sandbox on this machine; Krishna's game is never touched
-  ./sandbox down --pid N     stop an orphaned sandbox process (refuses anything that isn't one)
+  ./sandbox logs [-n 50]     module logs
+  ./sandbox cli <args>       any spacetimedb-cli command, aimed at your sandbox (e.g. cli describe ${DB})
+  ./sandbox env              SANDBOX_WEB / SANDBOX_STDB for browsers and scripts
+  ./sandbox down             stop it; data is kept for next time
 
-Options: -n <name> before the command runs a second, separate sandbox from the same checkout.`);
+It runs in the background and outlives your shell; only \`./sandbox down\` stops it. It uses about 140 MB,
+so stop it when you're done. Never use a bare spacetimedb-cli: its "local" server is Krishna's game.`);
   },
 };
-function needUp() { if (!alive(state().stdbPid, F.data)) die(`sandbox "${NAME}" is not running; run \`${ME} up\``); }
+function needUp() { if (!alive(state().stdbPid, F.data)) die('the sandbox is not running; run `./sandbox up`'); }
 // The CLI prefixes sql/call/logs with an "UNSTABLE" banner; agents call these constantly, so drop it.
 function quietCli(args) {
   const r = cli(args, { quiet: true, check: false });
@@ -420,7 +286,6 @@ function quietCli(args) {
   process.stderr.write(clean(r.stderr));
   process.exitCode = r.status;
 }
-function snapshots() { return fs.existsSync(F.snaps) ? fs.readdirSync(F.snaps) : []; }
 
 const cmd = argv.shift() || 'help';
 if (!Object.hasOwn(commands, cmd)) die(`unknown command "${cmd}". Try \`./sandbox help\`.`);

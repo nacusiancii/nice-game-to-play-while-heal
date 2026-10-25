@@ -36,18 +36,12 @@ client build and port pair, so nothing you do can reach the game you're playing.
 
 ```sh
 ./sandbox up            # start it, or apply your latest code; prints the URL to open
-./sandbox save x        # snapshot; ./sandbox reset x goes back to it
-./sandbox reset --prod  # copy your real data into the sandbox
 ./sandbox rehearse      # check that this branch's code publishes cleanly over your real data
-./sandbox ls            # what's running on this machine, and whose it is
 ./sandbox down
 ```
 
-See [AGENTS.md](AGENTS.md) for the rest, and for why a sandbox can't touch the real game.
-
-Add bot ghosts to the real game: `mise exec -- spacetimedb-cli --config-path ~/.config/rabble-below/prod-cli.toml call rabble-below seed_more_bots 20`.
-Each `./play.sh` backs up the data to `.stdb-backups/` first (the last 5 are kept). The database is locked, so wiping it
-takes a deliberate `spacetimedb-cli --config-path ~/.config/rabble-below/prod-cli.toml unlock rabble-below` first.
+`./sandbox help` lists the rest. Each `./play.sh` backs up the data to `.stdb-backups/` first (the last 5 are kept).
+Add bot ghosts to the real game: `mise exec -- spacetimedb-cli call rabble-below seed_more_bots 20`.
 
 ## Credits
 

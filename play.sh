@@ -6,13 +6,7 @@ cd "$(dirname "$0")"
 
 DB=rabble-below
 PORT=${PORT:-5173}
-# The identity that owns this game lives in its own config, so the default CLI identity (the one agents
-# use) cannot publish over it or wipe it. Without that file, fall back to the default config.
-PROD_CFG="$HOME/.config/rabble-below/prod-cli.toml"
-stdb() {
-  if [ -f "$PROD_CFG" ]; then mise exec -- spacetimedb-cli --config-path "$PROD_CFG" "$@"
-  else mise exec -- spacetimedb-cli "$@"; fi
-}
+stdb() { mise exec -- spacetimedb-cli "$@"; }
 
 if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
   echo "This checkout is a worktree. play.sh runs Krishna's game from the main checkout only."
@@ -60,7 +54,7 @@ if ! stdb publish "$DB" --server local -y >/dev/null; then
   echo "(A breaking schema change? Ask the agent to run ./sandbox rehearse.)"
   exit 1
 fi
-stdb lock "$DB" --server local >/dev/null 2>&1 || true # nothing can wipe or delete it until unlocked
+stdb lock "$DB" --server local >/dev/null 2>&1 || true # it can't be deleted until someone unlocks it
 stdb generate --lang typescript --out-dir client/src/module_bindings --module-path server >/dev/null
 
 echo "Building client…"
