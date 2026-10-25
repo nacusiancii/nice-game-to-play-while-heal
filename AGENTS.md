@@ -10,6 +10,9 @@ There are two copies of the game on this machine.
   build in `.sandbox/`. Break it and wipe it as often as you like. `./sandbox help` lists the commands.
   It keeps running after your shell exits, so `./sandbox down` when you're done; the laptop is short on RAM.
 
+`DESIGN.md` is the Ledger: why the game is the way it is. Read it before changing the design, and rewrite the
+page in place when a decision changes.
+
 Shipping to Krishna: `./sandbox rehearse` (his data, your code), then a PR to `main` (ask him first). After it
 merges, he runs `./play.sh`, which backs up his data before publishing.
 
