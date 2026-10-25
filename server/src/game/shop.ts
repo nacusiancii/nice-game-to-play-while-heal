@@ -1,7 +1,7 @@
 // Run and shop rules. All functions mutate the given RunState and throw Error on invalid moves.
 import {
   BASE_GOLD, HOARD_CAP, REROLL_COST, lifeCost, RELIC_ROUNDS, START_LIVES, UNIT_COST, WINS_TO_VICTORY,
-  emptyUnit, levelOf, pick, sellValue, shopItemSlots, shopTier, shopUnitSlots, shuffle, teamSlots,
+  ITEM_SELL, emptyUnit, levelOf, pick, sellValue, shopItemSlots, shopTier, shopUnitSlots, shuffle, teamSlots,
   type Rng, type RunState, type ShopSlot, type Unit,
 } from './core';
 import { ITEMS, ITEM_COST, ITEM_KINDS, RELICS, RELIC_KINDS, UNITS, UNIT_KINDS, type ShopApi } from './data';
@@ -50,7 +50,7 @@ export function newRun(rng: Rng): RunState {
   const st: RunState = {
     round: 1, gold: BASE_GOLD, lives: START_LIVES, wins: 0, status: 'shop',
     team: Array.from({ length: teamSlots([]) }, emptyUnit), shop: [], relics: [], relicChoices: [],
-    nextUid: 1, bonusGold: 0, rerolls: 0,
+    nextUid: 1, bonusGold: 0, rerolls: 0, pocket: '',
   };
   rollShop(st, rng);
   return st;
@@ -72,8 +72,16 @@ function merge(st: RunState, rng: Rng, dst: Unit, src: { atk: number; hp: number
   dst.atk = Math.min(CAP, Math.max(dst.atk, src.atk) + 1);
   dst.hp = Math.min(CAP, Math.max(dst.hp, src.hp) + 1);
   dst.xp = Math.min(5, dst.xp + src.xp + 1);
-  if (!dst.item && src.item) dst.item = src.item;
+  if (!dst.item) dst.item = src.item;
+  else stow(st, src.item);
   if (levelOf(dst.xp) > before) levelUpBonus(st, rng);
+}
+
+// A bumped item goes to the pocket; if that's taken, it's sold.
+function stow(st: RunState, item: string) {
+  if (!item) return;
+  if (!st.pocket) st.pocket = item;
+  else st.gold += ITEM_SELL;
 }
 
 // Levelling up adds a unit from the next tier to the shop.
@@ -106,7 +114,7 @@ export function buy(st: RunState, rng: Rng, shopIdx: number, teamIdx: number) {
     // take it off the shelf first: merging can add a bonus unit to the shop
     st.shop[shopIdx] = sold(s);
     st.gold -= cost;
-    if (def.held) target.item = s.kind;
+    if (def.held) { stow(st, target.item); target.item = s.kind; }
     else if (s.kind === 'scroll') merge(st, rng, target, { atk: target.atk - 1, hp: target.hp - 1, xp: 0, item: '' });
     else def.use!(sa, target);
     return;
@@ -136,6 +144,32 @@ export function sell(st: RunState, rng: Rng, teamIdx: number) {
   const d = UNITS[u.kind];
   if (d.sell) d.sell(api(st, rng), u, levelOf(u.xp));
   st.team[teamIdx] = emptyUnit();
+  stow(st, u.item);
+}
+
+// Item spots: a team slot, or POCKET.
+export const POCKET = -1;
+const itemAt = (st: RunState, i: number) => (i === POCKET ? st.pocket : slot(st, i).item);
+function setItemAt(st: RunState, i: number, item: string) {
+  if (i === POCKET) st.pocket = item; else slot(st, i).item = item;
+}
+
+// Move a held item to another unit or the pocket, swapping with whatever is there.
+export function moveItem(st: RunState, from: number, to: number) {
+  assertShop(st);
+  const a = itemAt(st, from), b = itemAt(st, to);
+  if (!a) throw new Error('No item there');
+  if (to !== POCKET && !slot(st, to).kind) throw new Error('Give items to a unit');
+  if (from === to) return;
+  setItemAt(st, to, a);
+  setItemAt(st, from, b);
+}
+
+export function sellItem(st: RunState, from: number) {
+  assertShop(st);
+  if (!itemAt(st, from)) throw new Error('No item there');
+  setItemAt(st, from, '');
+  st.gold += ITEM_SELL;
 }
 
 // Move a unit to another slot: swap, or merge if both are the same kind.

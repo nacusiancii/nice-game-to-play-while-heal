@@ -41,6 +41,7 @@ const run = table(
     bonusGold: t.i32(),
     rerolls: t.u32(),
     battles: t.u32(),
+    pocket: t.string().default(''), // added after launch: existing runs start with an empty pocket
   }
 );
 
@@ -136,7 +137,7 @@ function toState(r: RunRow): RunState {
     round: r.round, gold: r.gold, lives: r.lives, wins: r.wins, status: r.status as RunState['status'],
     team: r.team.map(u => ({ ...u })), shop: r.shop.map(s => ({ ...s })),
     relics: [...r.relics], relicChoices: [...r.relicChoices],
-    nextUid: r.nextUid, bonusGold: r.bonusGold, rerolls: r.rerolls,
+    nextUid: r.nextUid, bonusGold: r.bonusGold, rerolls: r.rerolls, pocket: r.pocket,
   };
 }
 
@@ -229,6 +230,13 @@ export const sellUnit = spacetimedb.reducer({ teamIdx: t.u32() }, (ctx, { teamId
 
 export const moveUnit = spacetimedb.reducer({ from: t.u32(), to: t.u32() }, (ctx, { from, to }) =>
   act(ctx, (st, rng) => shop.move(st, rng, from, to)));
+
+// Item spots: a team slot, or -1 for the pocket.
+export const moveItem = spacetimedb.reducer({ from: t.i32(), to: t.i32() }, (ctx, { from, to }) =>
+  act(ctx, st => shop.moveItem(st, from, to)));
+
+export const sellItem = spacetimedb.reducer({ from: t.i32() }, (ctx, { from }) =>
+  act(ctx, st => shop.sellItem(st, from)));
 
 export const reroll = spacetimedb.reducer(ctx => act(ctx, (st, rng) => shop.reroll(st, rng)));
 

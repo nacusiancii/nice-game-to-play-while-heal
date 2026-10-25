@@ -102,12 +102,21 @@ const shopName = (i: number) => {
   return s?.kind ? `${(s.isItem ? ITEMS[s.kind]?.name : UNITS[s.kind]?.name) ?? s.kind} (shop ${i})` : `empty shop ${i}`;
 };
 
+// item spots: a team slot, or -1 for the pocket
+const itemName = (i: number) => {
+  const k = i < 0 ? store.run?.pocket : store.run?.team[i]?.item;
+  return `${k ? ITEMS[k]?.name ?? k : 'nothing'} (${i < 0 ? 'pocket' : `slot ${i}`})`;
+};
+const spotName = (i: number) => (i < 0 ? 'the pocket' : unitName(i));
+
 export const api = {
   startRun: () => call('start run', () => conn?.reducers.startRun({})),
   abandonRun: () => call('abandon run', () => conn?.reducers.abandonRun({})),
   buy: (shopIdx: number, teamIdx: number) => call(`buy ${shopName(shopIdx)} onto ${unitName(teamIdx)}`, () => conn?.reducers.buyFromShop({ shopIdx, teamIdx })),
   sell: (teamIdx: number) => call(`sell ${unitName(teamIdx)}`, () => conn?.reducers.sellUnit({ teamIdx })),
   move: (from: number, to: number) => call(`move ${unitName(from)} onto ${unitName(to)}`, () => conn?.reducers.moveUnit({ from, to })),
+  moveItem: (from: number, to: number) => call(`move item ${itemName(from)} onto ${spotName(to)}`, () => conn?.reducers.moveItem({ from, to })),
+  sellItem: (from: number) => call(`sell item ${itemName(from)}`, () => conn?.reducers.sellItem({ from })),
   reroll: () => call('reroll', () => conn?.reducers.reroll({})),
   freeze: (shopIdx: number) => call(`${store.run?.shop[shopIdx]?.frozen ? 'unfreeze' : 'freeze'} ${shopName(shopIdx)}`, () => conn?.reducers.toggleFreeze({ shopIdx })),
   relic: (idx: number) => call(`pick relic ${store.run?.relicChoices[idx] ?? idx}`, () => conn?.reducers.chooseRelic({ idx })),
