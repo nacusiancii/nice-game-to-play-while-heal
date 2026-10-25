@@ -59,7 +59,8 @@ client build and port pair, so nothing you do can reach the game you're playing.
 ```
 
 `./sandbox help` lists the rest. Each `./play.sh` backs up the data to `.stdb-backups/` first (the last 5 are kept).
-Add bot ghosts to the real game: `mise exec -- spacetimedb-cli call rabble-below seed_more_bots 20`.
+Add bot ghosts to the real game: `mise exec -- spacetimedb-cli --config-path ~/.config/rabble-below/prod-cli.toml call rabble-below seed_more_bots 20`
+(that file holds the identity that owns the real game; the default CLI identity is refused).
 
 ## Balancing
 

@@ -67,6 +67,10 @@ fast, and Sixth Seat gives you room for one more misfit.
   Krishna was shopping. Twice. Now each one tinkers in a private cellar (`./sandbox`) with its own torches,
   its own coin and its own locks, and the shop upstairs can't even hear them. Their keys don't fit
   upstairs doors. Moving something upstairs is one deliberate trip, and Krishna holds the stairs.
+  The master key to the shop hangs on one hook only, `play.sh`'s (`~/.config/rabble-below/prod-cli.toml`);
+  a builder's everyday key (the default `spacetimedb-cli` login) is turned away at the door with a 403.
+  It only works if the everyday key is a different key: the hook was once taken down as useless because
+  both were still copies of the same one.
 - **The game narrates itself, once.** Every call to the server, screen change, battle beat, toast and
   sound is announced on one stream (`client/src/events.ts`). The complaints box (page 6) keeps the last
   few in words; `tools/feel`, which films a moment of the game frame by frame in a builder's cellar,
