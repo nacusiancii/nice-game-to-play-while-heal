@@ -4,6 +4,7 @@ import { RELICS, UNITS } from '../../server/src/game/data';
 import { DB, URI, api, connect, onChange, setErrorHandler, setReadOnly, store } from './net';
 import { h, img, toast } from './dom';
 import { ShopView } from './shopView';
+import type { Frame } from '../../server/src/game/battle';
 import { battleNow, getSpeed, playBattle, type BattleMeta } from './battleView';
 import { sfx } from './sfx';
 import { initReactions } from './react';
@@ -56,7 +57,12 @@ function showBattle() {
   if (getSpeed() === 0) {
     // instant mode: skip the replay, just report the result
     (b.result > 0 ? sfx.win : b.result < 0 ? sfx.lose : sfx.draw)();
-    toast(b.result > 0 ? `Victory over ${b.oppName}! +1 trophy` : b.result < 0 ? `Defeated by ${b.oppName}. -1 life` : `Draw with ${b.oppName}.`, b.result < 0);
+    // say who was left standing, so a loss you didn't watch still has a reason
+    const last = (JSON.parse(b.frames) as Frame[]).at(-1);
+    const left = (b.result > 0 ? last?.a : last?.b)?.filter(u => u.h > 0).map(u => `${UNITS[u.k]?.name ?? u.k} ${u.a}/${u.h}`) ?? [];
+    const standing = left.length ? ` ${b.result > 0 ? 'Still standing' : 'Their survivors'}: ${left.join(', ')}.` : '';
+    const said = b.result > 0 ? `Victory over ${b.oppName}! +1 trophy.` : b.result < 0 ? `Defeated by ${b.oppName}. -1 life.` : `Draw with ${b.oppName}.`;
+    toast(said + standing, b.result < 0, standing ? 5000 : 2700);
     afterBattle();
     return;
   }
