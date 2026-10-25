@@ -79,6 +79,8 @@ export function playBattle(root: HTMLElement, b: Battle, meta: BattleMeta, onDon
       }
       snapByUid.set(s.u, s);
       el.replaceChildren(unitEl({ kind: s.k, atk: s.a, hp: s.h, lvl: s.l, item: s.i, ward: s.w }, side === 0));
+      // at 0 hp a unit is already down; it only waits for triggers to resolve before it faints
+      el.classList.toggle('down', s.h <= 0);
       const x = side === 0 ? cx - 40 - (i + 1) * gap : cx + 40 + i * gap;
       el.style.left = `${x}px`;
       el.style.zIndex = String(20 - i);

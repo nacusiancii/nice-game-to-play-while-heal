@@ -221,6 +221,7 @@ button { font: inherit; color: inherit; }
 .bunit.face-r.hurt .spr { animation: hurt-r 0.3s ease; }
 @keyframes hurt { 0%, 100% { filter: none; } 30% { filter: brightness(2.2) sepia(1) hue-rotate(-50deg) saturate(6); transform: translateX(5px); } 60% { transform: translateX(-4px); } }
 @keyframes hurt-r { 0%, 100% { filter: none; transform: scaleX(-1); } 30% { filter: brightness(2.2) sepia(1) hue-rotate(-50deg) saturate(6); transform: scaleX(-1) translateX(5px); } 60% { transform: scaleX(-1) translateX(-4px); } }
+.bunit.down .spr { filter: grayscale(1) brightness(0.55); transform: rotate(80deg) translateY(10px); transition: transform 0.3s, filter 0.3s; }
 .bunit.dying { opacity: 0; transition: opacity 0.45s ease 0.1s; }
 .bunit.dying .spr { transform: rotate(80deg) translateY(10px); transition: transform 0.4s; }
 .bunit.proc .spr { animation: procglow 0.45s ease; }
