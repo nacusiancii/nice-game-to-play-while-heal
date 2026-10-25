@@ -31,15 +31,17 @@ Total footprint is around 100 MB of RAM.
 
 ## Dev loop
 
+`./play.sh` is the copy you play. To change the game, work in your own sandbox: a private SpacetimeDB, database,
+client build and port pair, so nothing you do can reach the game you're playing.
+
 ```sh
-mise exec -- spacetimedb-cli start --listen-addr 127.0.0.1:3000 --data-dir ./.stdb-data   # terminal 1
-mise exec -- spacetimedb-cli publish rabble-below --server local -y                       # after server changes
-mise exec -- spacetimedb-cli generate --lang typescript --out-dir client/src/module_bindings --module-path server
-cd client && npx vite                                                                      # terminal 2
+./sandbox up            # start it, or apply your latest code; prints the URL to open
+./sandbox rehearse      # check that this branch's code publishes cleanly over your real data
+./sandbox down
 ```
 
-Add bot ghosts: `mise exec -- spacetimedb-cli call rabble-below seed_more_bots 20`.
-Wipe all data: `mise exec -- spacetimedb-cli publish rabble-below --server local -y --delete-data=always`.
+`./sandbox help` lists the rest. Each `./play.sh` backs up the data to `.stdb-backups/` first (the last 5 are kept).
+Add bot ghosts to the real game: `mise exec -- spacetimedb-cli call rabble-below seed_more_bots 20`.
 
 ## Credits
 

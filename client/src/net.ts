@@ -39,10 +39,11 @@ function refresh(reason: string) {
 }
 
 export function connect() {
+  const token = localStorage.getItem(TOKEN_KEY) ?? undefined;
   conn = DbConnection.builder()
     .withUri(URI)
     .withDatabaseName(DB)
-    .withToken(localStorage.getItem(TOKEN_KEY) ?? undefined)
+    .withToken(token)
     .onConnect((c, identity, token) => {
       localStorage.setItem(TOKEN_KEY, token);
       store.me = identity.toHexString();
@@ -52,6 +53,11 @@ export function connect() {
         .subscribe(['SELECT * FROM player', 'SELECT * FROM run', 'SELECT * FROM battle', 'SELECT * FROM hall']);
     })
     .onConnectError((_ctx, err) => {
+      // A token signed by another server (say, an old sandbox on this port) is refused: join as a new player.
+      if (token && /401|token/i.test(String(err?.message ?? err))) {
+        localStorage.removeItem(TOKEN_KEY);
+        return connect();
+      }
       store.status = 'offline';
       store.error = String(err?.message ?? err);
       emit('offline');
