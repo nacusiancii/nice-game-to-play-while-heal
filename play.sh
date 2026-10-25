@@ -33,15 +33,17 @@ if [ -n "$running" ] && [ "$holder" != "$(cat .stdb-data/spacetime.pid 2>/dev/nu
   exit 1
 fi
 
-# stop everything this script started (SpacetimeDB, the web server) on exit or Ctrl+C
-trap 'trap - EXIT INT TERM; kill 0 2>/dev/null' EXIT INT TERM
+# On exit or Ctrl+C, stop exactly what this script started (SpacetimeDB, the web server), nothing else.
+started=()
+trap 'trap - EXIT INT TERM; [ ${#started[@]} -eq 0 ] || kill "${started[@]}" 2>/dev/null; exit' EXIT INT TERM
 
 if [ -z "$running" ]; then
   echo "Starting SpacetimeDB…"
   mkdir -p .stdb-data
   stdb start --listen-addr 127.0.0.1:3000 --data-dir ./.stdb-data \
-    --page_pool_max_size 67108864 > .stdb-data/server.log 2>&1 &
+    --page_pool_max_size 67108864 --non-interactive > .stdb-data/server.log 2>&1 &
   for _ in $(seq 40); do curl -s -o /dev/null http://127.0.0.1:3000/v1/ping && break; sleep 0.25; done
+  curl -s -o /dev/null http://127.0.0.1:3000/v1/ping && started+=("$(cat .stdb-data/spacetime.pid)")
 fi
 
 # Keep the last 5 copies of the data from before each publish. To roll back: stop play.sh, then
@@ -70,4 +72,6 @@ echo "  (Ctrl+C to stop)"
 echo
 [ -z "${NO_OPEN:-}" ] && command -v xdg-open >/dev/null && (sleep 1; xdg-open "http://127.0.0.1:$PORT" >/dev/null 2>&1) &
 python3 -m http.server "$PORT" --bind 127.0.0.1 --directory client/dist >/dev/null 2>&1 &
-wait
+started+=("$!")
+wait "$!" || true
+echo "The web server stopped (is port $PORT busy?). Stopping the game."

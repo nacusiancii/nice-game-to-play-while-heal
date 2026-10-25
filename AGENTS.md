@@ -17,14 +17,16 @@ There are two copies of the game on this machine, and they never share anything.
 ./sandbox reset before-tweak # back to that snapshot in under a second
 ./sandbox reset              # fresh database with seeded bots
 ./sandbox reset --prod       # a copy of Krishna's current data (his game is only read)
-./sandbox sql "SELECT * FROM run"     ./sandbox call start_run     ./sandbox logs
+./sandbox tables             # schema: tables, columns, reducers
+./sandbox sql "SELECT COUNT(*) AS n FROM ghost"   # aggregates need an alias; no SHOW TABLES
+./sandbox call buy_from_shop 0 0     ./sandbox logs
 ./sandbox env                # SANDBOX_WEB / SANDBOX_STDB for Playwright and scripts
 ./sandbox ls                 # everything running: Krishna's game, every sandbox, RAM, last activity
 ./sandbox down               # stop it when you're done; data stays for next time
 ```
 
-`-n <name>` runs another sandbox from the same checkout, for example to compare two balance ideas side by
-side. Each one is a SpacetimeDB process of about 140 MB, and this laptop is short on RAM, so stop the ones
+`./sandbox -n <name> up` (the name goes before the command) runs another sandbox from the same checkout,
+for example to compare two balance ideas side by side. Each one is a SpacetimeDB process of about 140 MB, and this laptop is short on RAM, so stop the ones
 you're not using.
 
 The sandbox survives your shell and tool timeouts; only `./sandbox down` stops it. Use `./sandbox cli …`
@@ -47,7 +49,8 @@ This isn't a convention you have to remember. It's enforced:
 Moving your work to Krishna is one deliberate step, and it's his:
 
 1. `./sandbox rehearse` copies his current data into your sandbox and publishes your code on top. If that
-   passes, the real publish will too. Play it there if the change touches saved state.
+   passes, the real publish will too. It replaces your sandbox's data, so `save` first if you need it. A clean
+   publish only proves the schema migrates; if your change affects saved runs or ghosts, play one there.
 2. Open a PR to `main` (ask Krishna first).
 3. After it merges, Krishna runs `./play.sh` in the main checkout. That publishes the new code over his
    data, keeping it, after taking a backup.
