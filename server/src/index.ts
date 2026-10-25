@@ -2,7 +2,8 @@ import { schema, table, t, SenderError, type InferSchema, type ReducerCtx } from
 import { pick, type Rng, type RunState } from './game/core';
 import { fight } from './game/battle';
 import * as shop from './game/shop';
-import { botTurn, randomStyle } from './game/bot';
+import { botRun } from './game/bot';
+import { pickGhost } from './game/match';
 
 const Unit = t.object('Unit', {
   uid: t.u32(), kind: t.string(), atk: t.i32(), hp: t.i32(), xp: t.u8(), item: t.string(),
@@ -169,13 +170,9 @@ const MAX_ROUND_SEED = 18;
 function seedBots(ctx: Ctx, count: number) {
   const rng = rngOf(ctx);
   for (let i = 0; i < count; i++) {
-    const st = shop.newRun(rng);
-    const style = randomStyle(rng);
     const name = crewName(rng);
-    while (st.status === 'shop' && st.round <= MAX_ROUND_SEED) {
-      botTurn(st, rng, style);
-      shop.endTurn(st, rng);
-      const opp = pickGhost(ctx, rng, st.round, st.wins, '');
+    botRun(rng, st => {
+      const opp = pickGhost(rng, st.round, st.wins, r => [...ctx.db.ghost.round.filter(r)]);
       const res = opp
         ? fight(rng, { team: st.team, relics: st.relics, gold: st.gold }, { team: opp.team, relics: opp.relics, gold: opp.gold })
         : { winner: 0 as const };
@@ -183,21 +180,18 @@ function seedBots(ctx: Ctx, count: number) {
         id: 0n, round: st.round, name, ownerHex: '', team: st.team.map(u => ({ ...u })),
         relics: [...st.relics], gold: st.gold, wins: st.wins, lives: st.lives,
       });
-      shop.afterBattle(st, rng, res.winner);
-    }
+      return res.winner;
+    }, MAX_ROUND_SEED);
   }
 }
 
-function pickGhost(ctx: Ctx, rng: Rng, round: number, wins: number, meHex: string) {
-  for (let r = round; r >= 1; r--) {
-    const pool = [...ctx.db.ghost.round.filter(r)].filter(g => !meHex || g.ownerHex !== meHex);
-    const all = pool.length ? pool : [...ctx.db.ghost.round.filter(r)];
-    if (!all.length) continue;
-    // matchmaking: prefer ghosts with a similar record
-    all.sort((a, b) => Math.abs(a.wins - wins) - Math.abs(b.wins - wins) || (rng() - 0.5));
-    return all[Math.floor(rng() * Math.min(6, all.length))];
-  }
-  return undefined;
+// Never your own ghost, unless it's the only one there is.
+function ghostsAt(ctx: Ctx, meHex: string) {
+  return (round: number) => {
+    const all = [...ctx.db.ghost.round.filter(round)];
+    const others = all.filter(g => g.ownerHex !== meHex);
+    return others.length ? others : all;
+  };
 }
 
 // ---------- lifecycle ----------
@@ -255,7 +249,7 @@ export const fightGhost = spacetimedb.reducer(ctx => {
   const meHex = ctx.sender.toHexString();
 
   shop.endTurn(st, rng);
-  const opp = pickGhost(ctx, rng, st.round, st.wins, meHex);
+  const opp = pickGhost(rng, st.round, st.wins, ghostsAt(ctx, meHex));
   const oppSide = opp
     ? { team: opp.team.map(u => ({ ...u })), relics: [...opp.relics], gold: opp.gold }
     : { team: [], relics: [], gold: 0 };

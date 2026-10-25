@@ -44,8 +44,8 @@ that sounds like a bug ("bug", "stuck", "broken"…) goes out at once as its own
 - `tools/feel/` lets an agent watch a moment of the game frame by frame: motion, timing, flicker, how long a fight
   drags. `tools/feel/feel record battle round=8` or `tools/feel/feel record first-turn`, then `feel look`.
   See [tools/feel/README.md](tools/feel/README.md).
-- `tools/sim.ts` runs a headless bot league and prints win rates per unit, tribe and relic:
-  `cd tools && npm install && npx tsx sim.ts 400 7`.
+- `tools/` holds the balancing tools: a quick bot league (`tools/sim.ts`), the Veteran, and a text version of the game.
+  See below.
 
 ## Dev loop
 
@@ -60,6 +60,20 @@ client build and port pair, so nothing you do can reach the game you're playing.
 
 `./sandbox help` lists the rest. Each `./play.sh` backs up the data to `.stdb-backups/` first (the last 5 are kept).
 Add bot ghosts to the real game: `mise exec -- spacetimedb-cli call rabble-below seed_more_bots 20`.
+
+## Balancing
+
+`cd tools && npm install` once. They all run the real rules and matchmaking in `server/src/game/`.
+
+- `./play` is the game as a terminal program (`./play new`, `./play help`), for agents or you. `./play hint`
+  shows what the Veteran would do.
+- `./veteran` runs the Veteran, a search player that tries every option on a copy of the run and fights the
+  results. `./veteran league` reports how it fares, what it buys and which choices were real dilemmas;
+  `./veteran diff` compares two leagues. It is CPU heavy (a minute or two on 4 cores), so use it to confirm a hunch.
+- `npx tsx sim.ts` is the quick league of simple bots, a one-second smoke test.
+
+How to use them together (LLM playtesters with personas first, numbers second) is in the
+`balance-check` skill: `.claude/skills/balance-check/SKILL.md`.
 
 ## Credits
 

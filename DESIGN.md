@@ -52,10 +52,17 @@ fast, and Sixth Seat gives you room for one more misfit.
 - **The server is the referee.** The shop, the dice and every battle happen inside SpacetimeDB.
   Your screen only shows what happened and replays the fights. Nobody gets to cheat, not even the rat.
 - **One rulebook for everyone.** The server, the game screen and the training simulator all read
-  the same rules (`server/src/game/`), so a tooltip can never lie.
-- **Bots train in the basement.** A headless league of dumb bots (`tools/sim.ts`) plays hundreds
-  of runs in seconds and reports who's too strong. They are very dumb. Read their numbers as
-  hints, not gospel.
+  the same rules (`server/src/game/`), so a tooltip can never lie. They even pick opponents the same
+  way (`server/src/game/match.ts`), so the basement's numbers are about the dungeon you actually play.
+- **Bots train in the basement, and a Veteran watches them.** A league of dumb bots (`tools/sim.ts`)
+  plays hundreds of runs in seconds. The **Veteran** (`tools/veteran.ts`) is slower and sharper: before
+  every purchase it tries each option on a copy of its run and fights the copies against ghosts it has
+  seen. It keeps a tally of which choices were real **dilemmas** and which were **obvious**, because
+  a choice that's obvious isn't a choice (see rule 1). It has never been told what any unit does,
+  so it doesn't care how many tribes the Market hires.
+- **Playtesters with opinions.** `tools/play.ts` is the Market as a terminal game, so an agent can
+  play a run like a person, grumble in a diary, and argue with the Veteran's hints
+  (the `balance-check` skill). Their grumbles find what numbers can't; the numbers keep their grumbles honest.
 - **Every apprentice gets their own cellar.** The Market's builders once knocked over the counter while
   Krishna was shopping. Twice. Now each one tinkers in a private cellar (`./sandbox`) with its own torches,
   its own coin and its own locks, and the shop upstairs can't even hear them. Their keys don't fit
@@ -96,7 +103,6 @@ Ideas for when the fever is gone:
 
 - **Undo** for the last shop action. (For the front line.)
 - **Friends' ghosts** and live async PvP. Your rabble against theirs.
-- **Smarter bots** that play like someone with a few runs and some opinions.
 
 ---
 

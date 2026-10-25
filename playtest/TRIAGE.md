@@ -46,7 +46,7 @@ you found. The player is not a bug reporter. Treat every reaction as honest desi
   worktree. Check each fix for real:
   - replay the moment on your build and look at it;
   - reproduce the trail with the rules engine. `server/src/game/` is plain TypeScript; start
-    from the moment's `run` JSON (see `tools/sim.ts` for how to drive it).
+    from the moment's `run` JSON (`tools/play.ts` drives it one command at a time).
 
   Commit each fix on your branch with a message that names the reaction ids.
 - **Big themes** (design questions, balance, new mechanics): don't fix them here. If one
