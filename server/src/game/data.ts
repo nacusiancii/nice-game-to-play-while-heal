@@ -1,5 +1,6 @@
 // Every unit, item and relic in the game, with its rules.
 import type { Tribe, Unit, RunState, Rng } from './core';
+import { HOARD_CAP } from './core';
 import type { Battle, BU } from './battle';
 
 // Shop-side hooks get a small API over the run state.
@@ -51,9 +52,9 @@ export const UNITS: Record<string, UnitDef> = {
     hurt: (b, u, L) => b.buff(u, L, 0),
   },
   spore: {
-    name: 'Spore Puff', tribe: 'Fungus', tier: 1, atk: 1, hp: 2, sprite: 'giant_spore',
-    text: L => `End turn: gain +${L} health.`,
-    endTurn: (s, u, L) => s.buff(u, 0, L),
+    name: 'Spore Puff', tribe: 'Fungus', tier: 1, atk: 1, hp: 1, sprite: 'giant_spore',
+    text: L => `End turn: gain +${L === 3 ? 2 : 1} health.`,
+    endTurn: (s, u, L) => s.buff(u, 0, L === 3 ? 2 : 1),
   },
   skeleton: {
     name: 'Skeleton', tribe: 'Undead', tier: 1, atk: 2, hp: 1, sprite: 'skeleton_humanoid_small_new',
@@ -112,8 +113,8 @@ export const UNITS: Record<string, UnitDef> = {
   // ---------- Tier 3 ----------
   hoarder: {
     name: 'Hobgoblin Hoarder', tribe: 'Goblin', tier: 3, atk: 3, hp: 5, sprite: 'hobgoblin_new',
-    text: L => `Start of battle: gain +${L}/+${L} for every 2 unspent gold.`,
-    sob: (b, u, L) => { const n = Math.floor(b.gold(u.side) / 2); if (n) b.buff(u, n * L, n * L); },
+    text: L => `Start of battle: gain +${L}/+${L} for every 2 unspent gold (up to ${HOARD_CAP}).`,
+    sob: (b, u, L) => { const n = Math.floor(Math.min(HOARD_CAP, b.gold(u.side)) / 2); if (n) b.buff(u, n * L, n * L); },
   },
   necro: {
     name: 'Necromancer', tribe: 'Undead', tier: 3, atk: 2, hp: 4, sprite: 'necromancer_new',
@@ -166,7 +167,7 @@ export const UNITS: Record<string, UnitDef> = {
     kill: (b, u, L) => b.buff(u, 2 * L, L),
   },
   mushroom: {
-    name: 'Wandering Mushroom', tribe: 'Fungus', tier: 4, atk: 2, hp: 4, sprite: 'wandering_mushroom_new',
+    name: 'Wandering Mushroom', tribe: 'Fungus', tier: 4, atk: 3, hp: 5, sprite: 'wandering_mushroom_new',
     text: L => `End turn: give all other Fungus +${L} health and the friend ahead +${L} attack.`,
     endTurn: (s, u, L) => {
       for (const f of s.units()) if (f !== u && UNITS[f.kind].tribe === 'Fungus') s.buff(f, 0, L);
@@ -186,9 +187,9 @@ export const UNITS: Record<string, UnitDef> = {
   // ---------- Tier 5 ----------
   warlord: {
     name: 'Orc Warlord', tribe: 'Goblin', tier: 5, atk: 6, hp: 7, sprite: 'orc_warlord',
-    text: L => `Start of battle: give all friends +${L}/+${L} for every 2 unspent gold.`,
+    text: L => `Start of battle: give all friends +${L}/+${L} for every 2 unspent gold (up to ${HOARD_CAP}).`,
     sob: (b, u, L) => {
-      const n = Math.floor(b.gold(u.side) / 2);
+      const n = Math.floor(Math.min(HOARD_CAP, b.gold(u.side)) / 2);
       if (n) for (const f of b.friends(u, true)) b.buff(f, n * L, n * L, u);
     },
   },
@@ -299,20 +300,23 @@ export const ITEMS: Record<string, ItemDef> = {
 export const ITEM_KINDS = Object.keys(ITEMS);
 export const ITEM_COST = 3;
 
-export interface RelicDef { name: string; sprite: string; text: string }
+// fits: only offered to a run it could matter to (a tribe relic needs that tribe on the team)
+export interface RelicDef { name: string; sprite: string; text: string; fits?: (team: { kind: string; item: string }[]) => boolean }
+const fields = (tribe: string) => (team: { kind: string }[]) => team.some(u => u.kind && UNITS[u.kind].tribe === tribe);
 
 export const RELICS: Record<string, RelicDef> = {
-  ledger: { name: "Merchant's Ledger", sprite: 'book_dog_eared', text: '+1 gold every turn.' },
-  dice: { name: 'Loaded Dice', sprite: 'misc_deck_new', text: 'Your first reroll each turn is free.' },
+  ledger: { name: "Merchant's Ledger", sprite: 'book_dog_eared', text: '+2 gold every turn.' },
+  dice: { name: 'Loaded Dice', sprite: 'misc_deck_new', text: 'Your first reroll each turn is free and can show units one tier higher.' },
   banner: { name: 'War Banner', sprite: 'misc_horn', text: 'Start of battle: your front unit gets +2/+3.' },
-  lantern: { name: 'Grave Lantern', sprite: 'misc_lantern', text: 'Summoned friends get +2/+2.' },
-  spores: { name: 'Spore Pouch', sprite: 'misc_bottle', text: 'Fungus end-turn abilities trigger twice.' },
+  lantern: { name: 'Grave Lantern', sprite: 'misc_lantern', text: 'Summoned friends get +2/+2.',
+    fits: t => fields('Undead')(t) || t.some(u => u.item === 'bonecharm') },
+  spores: { name: 'Spore Pouch', sprite: 'misc_bottle', text: 'Fungus end-turn abilities trigger twice.', fits: fields('Fungus') },
   sixth: { name: 'Sixth Seat', sprite: 'chest', text: 'Your team has 6 slots.' },
   piggy: { name: 'Piggy Bank', sprite: 'gold_pile_10', text: 'Up to 5 unspent gold carries over to the next turn.' },
-  tome: { name: 'Tome of Echoes', sprite: 'book_indigo', text: 'Arcane ability damage +1.' },
+  tome: { name: 'Tome of Echoes', sprite: 'book_indigo', text: 'Arcane ability damage +2.', fits: fields('Arcane') },
   whet: { name: 'Sharpening Kit', sprite: 'misc_stone_old', text: 'Start of battle: all friends +1 attack.' },
   bag: { name: 'Bottomless Bag', sprite: 'misc_box', text: 'Items cost 1 less.' },
-  heart: { name: 'Troll Heart', sprite: 'chunk', text: 'Gain 2 lives now.' },
+  heart: { name: 'Troll Heart', sprite: 'chunk', text: 'Gain 2 lives now. Rerolls cost 2 gold.' },
 };
 
 export const RELIC_KINDS = Object.keys(RELICS);

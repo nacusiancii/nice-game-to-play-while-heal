@@ -1,7 +1,7 @@
 // A simple shop AI. Used to seed ghost opponents so a fresh server has rivals to fight.
 import { UNIT_COST, levelOf, pick, type Rng, type RunState, type Unit } from './core';
 import { ITEMS, UNITS } from './data';
-import { afterBattle, buy, chooseRelic, endTurn, itemCost, newRun, reroll, sell } from './shop';
+import { afterBattle, buy, chooseRelic, endTurn, itemCost, newRun, reroll, rerollCost, sell } from './shop';
 
 const power = (u: { atk: number; hp: number }) => u.atk + u.hp;
 
@@ -76,7 +76,7 @@ export function botTurn(st: RunState, rng: Rng, style: BotStyle) {
       }
     }
     // 3) reroll
-    if (rerolls < style.rerollBudget && st.gold >= 1) { rerolls++; reroll(st, rng); continue; }
+    if (rerolls < style.rerollBudget && st.gold >= rerollCost(st)) { rerolls++; reroll(st, rng); continue; }
     break;
   }
   arrange(st, rng);

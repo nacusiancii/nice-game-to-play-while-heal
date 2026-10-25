@@ -1,5 +1,5 @@
 import './style.css';
-import { BASE_GOLD, WINS_TO_VICTORY } from '../../server/src/game/core';
+import { BASE_GOLD, WINS_TO_VICTORY, lifeCost } from '../../server/src/game/core';
 import { RELICS, UNITS } from '../../server/src/game/data';
 import { DB, URI, api, connect, onChange, setErrorHandler, setReadOnly, store } from './net';
 import { h, img, toast } from './dom';
@@ -61,7 +61,7 @@ function showBattle() {
     const last = (JSON.parse(b.frames) as Frame[]).at(-1);
     const left = (b.result > 0 ? last?.a : last?.b)?.filter(u => u.h > 0).map(u => `${UNITS[u.k]?.name ?? u.k} ${u.a}/${u.h}`) ?? [];
     const standing = left.length ? ` ${b.result > 0 ? 'Still standing' : 'Their survivors'}: ${left.join(', ')}.` : '';
-    const said = b.result > 0 ? `Victory over ${b.oppName}! +1 trophy.` : b.result < 0 ? `Defeated by ${b.oppName}. -1 life.` : `Draw with ${b.oppName}.`;
+    const said = b.result > 0 ? `Victory over ${b.oppName}! +1 trophy.` : b.result < 0 ? `Defeated by ${b.oppName}.${lifeCost(b.round) ? ' -1 life.' : ' The rabble is still warming up: no life lost.'}` : `Draw with ${b.oppName}.`;
     toast(said + standing, b.result < 0, standing ? 5000 : 2700);
     afterBattle();
     return;
@@ -70,7 +70,7 @@ function showBattle() {
   shown('battle');
   // the run row already holds post-battle numbers; show the pre-battle record
   const myWins = r.wins - (b.result > 0 ? 1 : 0);
-  const myLives = r.lives + (b.result < 0 ? 1 : 0);
+  const myLives = r.lives + (b.result < 0 ? lifeCost(b.round) : 0);
   playBattle(app, b, { myName: store.player?.name ?? 'You', myWins, myLives, myRelics: [...r.relics] }, afterBattle);
 }
 
@@ -141,6 +141,7 @@ function renderTitle() {
             h('li', null, h('b', null, 'Merge: '), 'drop a unit on the same kind to level it up. Levelling adds a stronger unit to the market.'),
             h('li', null, h('b', null, 'Order: '), 'the rightmost unit fights first. Battles are automatic.'),
             h('li', null, h('b', null, 'Tribes: '), 'Beasts brawl, Undead return, Fungus grow every turn, Goblins love gold, Arcane zap, Dwarves ward.'),
+            h('li', null, h('b', null, 'Lives: '), 'a loss costs a life, except in rounds 1 and 2 while your rabble warms up.'),
             h('li', null, h('b', null, 'Relics: '), 'pick one on rounds 3, 6, 9 and 12.'),
             h('li', null, h('b', null, 'Ghosts: '), 'every team you field is saved and haunts future runs.'),
             h('li', null, h('b', null, 'Keys: '), 'R reroll · F freeze · S sell · Space fight · T battle speed · 1-7 pick market slot'))),

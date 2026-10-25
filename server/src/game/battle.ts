@@ -75,7 +75,7 @@ export class Battle {
   behind(u: BU) { const t = this.alive(u.side); const i = t.indexOf(u); return i < 0 ? undefined : t[i + 1]; }
   randomFriend(u: BU) { const f = this.friends(u); return f.length ? f[Math.floor(this.rng() * f.length)] : undefined; }
   randomEnemy(u: BU) { const e = this.enemies(u); return e.length ? e[Math.floor(this.rng() * e.length)] : undefined; }
-  spell(u: BU, n: number) { return n + (this.def(u).tribe === 'Arcane' && this.relic(u.side, 'tome') ? 1 : 0); }
+  spell(u: BU, n: number) { return n + (this.def(u).tribe === 'Arcane' && this.relic(u.side, 'tome') ? 2 : 0); }
 
   // ---------- effects ----------
   proc(u: BU) { this.fx.push({ t: 'proc', u: u.uid }); }

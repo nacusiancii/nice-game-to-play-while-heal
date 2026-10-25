@@ -1,4 +1,5 @@
 #!/bin/sh
-# Runs play.ts with the local tsx (npm install once in tools/).
+# Runs play.ts with the local tsx (installs its deps when the lockfile changes).
 d=$(dirname "$0")
+[ "$d/package-lock.json" -nt "$d/node_modules/.package-lock.json" ] && (cd "$d" && npm ci --no-fund --no-audit --silent)
 exec "$d/node_modules/.bin/tsx" "$d/play.ts" "$@"

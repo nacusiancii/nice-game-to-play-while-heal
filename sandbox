@@ -185,8 +185,10 @@ function stopServer() { const s = state(); kill(s.stdbPid, F.data); delete s.std
 
 // ---------- building blocks ----------
 function deps() {
+  // missing, or older than the lockfile (say, after a pull)
+  const mtime = f => { try { return fs.statSync(f).mtimeMs; } catch { return 0; } };
   for (const d of ['server', 'client'])
-    if (!fs.existsSync(path.join(ROOT, d, 'node_modules')))
+    if (mtime(path.join(ROOT, d, 'package-lock.json')) > mtime(path.join(ROOT, d, 'node_modules', '.package-lock.json')))
       run('npm', ['ci', '--no-fund', '--no-audit', '--loglevel=error'], { cwd: path.join(ROOT, d) });
 }
 // Publishing never wipes: like play.sh, a breaking schema change fails and leaves the data alone.

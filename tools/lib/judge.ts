@@ -1,10 +1,10 @@
 // Judge a team the way the market would: fight a fixed set of likely opponents.
 // Every candidate is judged against the same opponents with the same dice (common random numbers),
 // so small differences between candidates are real differences, not luck.
-import { REROLL_COST, UNIT_COST, type Rng, type RunState } from '../../server/src/game/core';
+import { UNIT_COST, type Rng, type RunState } from '../../server/src/game/core';
 import type { Side } from '../../server/src/game/battle';
 import { ITEMS, UNITS } from '../../server/src/game/data';
-import { buy, endTurn, itemCost, reroll, startTurn } from '../../server/src/game/shop';
+import { buy, endTurn, itemCost, reroll, rerollCost, startTurn } from '../../server/src/game/shop';
 import { Pool, fightScore, sideOf } from './pool';
 import { childSeed, makeRng } from './rng';
 import { cloneRun } from './state';
@@ -64,7 +64,7 @@ function project(st: RunState, turns: number, seed: number): RunState {
       const item = x.shop.findIndex(s => s.kind && s.isItem && !ITEMS[s.kind].held);
       const strongest = x.team.reduce((b, u, i) => (u.kind && (b < 0 || u.atk + u.hp > x.team[b].atk + x.team[b].hp) ? i : b), -1);
       if (item >= 0 && strongest >= 0 && x.gold >= itemCost(x) && tryBuy(item, strongest)) continue;
-      if (rerolls < 3 && x.gold >= REROLL_COST + Math.min(UNIT_COST, itemCost(x))) { reroll(x, rng); rerolls++; continue; }
+      if (rerolls < 3 && x.gold >= rerollCost(x) + Math.min(UNIT_COST, itemCost(x))) { reroll(x, rng); rerolls++; continue; }
       break;
     }
     endTurn(x, rng);

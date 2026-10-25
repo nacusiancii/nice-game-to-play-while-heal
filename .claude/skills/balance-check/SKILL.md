@@ -15,7 +15,7 @@ Two kinds of evidence, used together:
 
 Read the opinions next to the numbers. Neither alone is enough.
 
-Setup once: `cd tools && npm install`.
+The tools install their own deps on first run.
 
 ## 1. Default: two or three playtesters (cheap)
 
@@ -62,8 +62,7 @@ ends the run.
 **Your persona:** {PERSONA}
 
 Play one full run from `tools/` with `./play <command> --save=.runs/{NAME}.json` (always pass your save).
-Start with `./play new {SEED}`, then `./play help` for the commands. Shop numbers shift after a buy;
-the tool reprints them after every action. Read the rules from what the game prints, not from the
+Start with `./play new {SEED}`, then `./play help` for the commands. Read the rules from what the game prints, not from the
 source code. Don't read `server/src/game/*` or the tools' source.
 
 Play like a person:

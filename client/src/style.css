@@ -139,6 +139,7 @@ button { font: inherit; color: inherit; }
 .btn.ice { background: linear-gradient(#4aa3d8, #24608a); }
 .btn.sell { background: linear-gradient(#7a5a3a, #4e3820); }
 .btn.sell.drop-ok { outline: 3px solid var(--good); }
+.btn.sell.sure { background: linear-gradient(#c0392b, #7a1d12); animation: pop 0.25s ease; }
 .kbd { font-size: 12px; opacity: 0.65; border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; }
 
 /* ---------- info panel ---------- */
@@ -231,7 +232,9 @@ button { font: inherit; color: inherit; }
 .note { position: absolute; left: 50%; top: 16%; transform: translateX(-50%); z-index: 5; font-size: 40px; font-weight: 700; color: var(--ink); text-shadow: 3px 3px 0 #000; animation: notein 1.4s ease forwards; pointer-events: none; white-space: nowrap; }
 @keyframes notein { 0% { opacity: 0; transform: translate(-50%, 10px) scale(0.8); } 20%, 75% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; } }
 .battle-controls { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 5; display: flex; gap: 10px; }
-.result { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 10; text-align: center; background: var(--panel); border: 2px solid var(--edge); border-radius: 16px; padding: 22px 40px; box-shadow: 0 20px 60px rgba(0,0,0,0.8); animation: pop 0.4s ease; }
+.result { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 10; text-align: center; background: var(--panel); border: 2px solid var(--edge); border-radius: 16px; padding: 22px 40px; box-shadow: 0 20px 60px rgba(0,0,0,0.8); animation: pop-centred 0.4s ease; }
+/* .result is centred with a transform, so its pop has to keep the translate */
+@keyframes pop-centred { 0% { transform: translate(-50%, -50%) scale(0.6); } 60% { transform: translate(-50%, -50%) scale(1.12); } 100% { transform: translate(-50%, -50%) scale(1); } }
 .result h2 { font-size: 46px; margin: 0; }
 .result.win h2 { color: var(--gold); } .result.lose h2 { color: var(--bad); } .result.draw h2 { color: var(--dim); }
 .result p { color: var(--dim); font-size: 19px; margin: 8px 0 16px; }

@@ -1,13 +1,15 @@
 // The den: your team, the shop, and all buying/selling/arranging.
-import { REROLL_COST, UNIT_COST, WINS_TO_VICTORY, levelOf, sellValue, shopTier } from '../../server/src/game/core';
+import { UNIT_COST, WINS_TO_VICTORY, levelOf, sellValue, shopTier } from '../../server/src/game/core';
 import { ITEMS, RELICS, UNITS } from '../../server/src/game/data';
-import { itemCost } from '../../server/src/game/shop';
+import { itemCost, rerollCost } from '../../server/src/game/shop';
 import type { Run } from './module_bindings/types';
 import { api, store } from './net';
 import { floatAt, h, img, toast } from './dom';
 import { TRIBE_BLURB, hearts, itemEl, itemInfo, relicInfo, tribeTag, unitEl, unitInfo } from './pieces';
 import { isMuted, sfx, toggleMute } from './sfx';
 import { cycleSpeed, getSpeed, speedLabel } from './battleView';
+
+const ordinal = (n: number) => `${n}${['th', 'st', 'nd', 'rd'][n % 10 > 3 || (n % 100 >= 11 && n % 100 <= 13) ? 0 : n % 10]}`;
 
 type Sel = { from: 'shop' | 'team'; idx: number } | null;
 
@@ -22,6 +24,8 @@ export class ShopView {
   dragging = false;
   pendingRender = false;
   fighting = false;
+  // Costly actions ask twice: the first press arms them, a second one within a few seconds does it.
+  armed: { key: string; until: number } | null = null;
 
   constructor(root: HTMLElement, private hooks: ShopHooks) {
     this.root = root;
@@ -72,14 +76,15 @@ export class ShopView {
 
     const selShop = this.sel?.from === 'shop' ? r.shop[this.sel.idx] : undefined;
     const selTeam = this.sel?.from === 'team' ? r.team[this.sel.idx] : undefined;
-    const freeReroll = r.rerolls === 0 && r.relics.includes('dice');
+    const rc = rerollCost(r);
+    const sure = selTeam?.kind && this.isArmed(`sell:${this.sel!.idx}`);
     const sellBtn = h('button', {
-      class: 'btn sell', 'data-drop': 'sell', disabled: !selTeam?.kind && !this.dragging,
+      class: `btn sell${sure ? ' sure' : ''}`, 'data-drop': 'sell', disabled: !selTeam?.kind && !this.dragging,
       onclick: () => this.sellSelected(),
-    }, selTeam?.kind ? `Sell ${UNITS[selTeam.kind].name} +${sellValue(selTeam)}g` : 'Sell', h('span', { class: 'kbd' }, 'S'));
+    }, selTeam?.kind ? `${sure ? 'Really sell' : 'Sell'} ${UNITS[selTeam.kind].name} +${sellValue(selTeam)}g${sure ? '?' : ''}` : 'Sell', h('span', { class: 'kbd' }, 'S'));
     const controls = h('div', { class: 'controls' },
-      h('button', { class: 'btn gold', onclick: () => this.reroll(), disabled: !freeReroll && r.gold < REROLL_COST },
-        freeReroll ? 'Reroll (free)' : `Reroll ${REROLL_COST}g`, h('span', { class: 'kbd' }, 'R')),
+      h('button', { class: 'btn gold', onclick: () => this.reroll(), disabled: r.gold < rc },
+        rc ? `Reroll ${rc}g` : 'Reroll (free)', h('span', { class: 'kbd' }, 'R')),
       h('button', { class: 'btn ice', onclick: () => this.freezeSelected(), disabled: !selShop?.kind },
         selShop?.frozen ? 'Unfreeze' : 'Freeze', h('span', { class: 'kbd' }, 'F')),
       sellBtn,
@@ -113,7 +118,8 @@ export class ShopView {
     if (u.kind) {
       const el = unitEl({ ...u }, true);
       slot.append(el);
-      this.hoverable(slot, () => unitInfo(u.kind, u.xp, `sells for ${sellValue(u)}g`));
+      const place = r.team.slice(0, i).filter(x => x.kind).length + 1;
+      this.hoverable(slot, () => unitInfo(u.kind, u.xp, `fights ${ordinal(place)} · sells for ${sellValue(u)}g`));
       const held = el.querySelector<HTMLElement>('.held');
       if (held && u.item) this.hoverable(held, () => itemInfo(u.item, `held by ${UNITS[u.kind].name}, can't be sold on its own`));
       this.draggable(el, { from: 'team', idx: i }, UNITS[u.kind].sprite);
@@ -200,6 +206,18 @@ export class ShopView {
   // ---------- interactions ----------
   setSel(s: Sel) { this.sel = s; this.render(); }
 
+  isArmed(key: string) { return !!this.armed && this.armed.key === key && Date.now() < this.armed.until; }
+  // true if the action may go ahead now; otherwise arms it and says why
+  confirm(key: string, why: string) {
+    if (this.isArmed(key)) { this.armed = null; return true; }
+    this.armed = { key, until: Date.now() + 4000 };
+    sfx.error();
+    toast(why);
+    setTimeout(() => { if (this.armed?.key === key && Date.now() >= this.armed.until) { this.armed = null; this.render(); } }, 4100);
+    this.render();
+    return false;
+  }
+
   clickShop(i: number) {
     sfx.click();
     if (this.sel?.from === 'shop' && this.sel.idx === i) return this.setSel(null);
@@ -240,6 +258,8 @@ export class ShopView {
     if (r.gold < price) { sfx.error(); toast('Not enough gold.', true); return this.render(); }
     if (s.isItem && !u.kind) { sfx.error(); toast('Drop items onto a unit.', true); return this.render(); }
     if (!s.isItem && u.kind && u.kind !== s.kind) { sfx.error(); toast('That slot is taken. Drop on an empty slot or the same kind.', true); return this.render(); }
+    if (s.isItem && ITEMS[s.kind].held && u.item && u.item !== s.kind &&
+      !this.confirm(`item:${shopIdx}:${teamIdx}`, `${UNITS[u.kind].name} already holds ${ITEMS[u.item].name}. Do that again to swap it out.`)) return;
     if (!s.isItem && u.kind === s.kind) sfx.merge(); else sfx.buy();
     api.buy(shopIdx, teamIdx);
     this.render();
@@ -256,7 +276,11 @@ export class ShopView {
   sellSelected() {
     if (this.sel?.from !== 'team') return;
     const i = this.sel.idx;
-    if (!this.run.team[i].kind) return;
+    const u = this.run.team[i];
+    if (!u.kind) return;
+    // a levelled unit or one holding an item is worth a second press (dragging to Sell is deliberate enough)
+    if ((levelOf(u.xp) > 1 || u.item) && !this.confirm(`sell:${i}`,
+      `Sell ${UNITS[u.kind].name}${u.item ? ` and its ${ITEMS[u.item].name}` : ''} for ${sellValue(u)}g? Press Sell again.`)) return;
     this.sel = null;
     this.sellAt(i);
   }
@@ -271,7 +295,7 @@ export class ShopView {
 
   reroll() {
     const r = this.run;
-    if (r.gold < REROLL_COST && !(r.rerolls === 0 && r.relics.includes('dice'))) { sfx.error(); return; }
+    if (r.gold < rerollCost(r)) { sfx.error(); return; }
     sfx.reroll();
     if (this.sel?.from === 'shop') this.sel = null;
     api.reroll();

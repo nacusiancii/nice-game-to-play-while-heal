@@ -24,7 +24,11 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, props?: Props, 
 }
 
 export const art = (name: string) => `/art/${name}.png`;
-export const img = (name: string, cls = '') => h('img', { src: art(name), class: cls, draggable: false, alt: '' });
+export function img(name: string, cls = '') {
+  const el = h('img', { src: art(name), class: cls, alt: '' });
+  el.draggable = false; // a native image drag would cancel our pointer drag
+  return el;
+}
 
 // Floating text above an element.
 export function floatAt(el: Element | null | undefined, text: string, cls = 'good', delay = 0) {

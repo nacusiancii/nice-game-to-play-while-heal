@@ -17,7 +17,7 @@
 //   --save <file>                which run (default .runs/current.json). Use one per player.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { REROLL_COST, UNIT_COST, levelOf, teamSlots, type RunState, type Unit } from '../server/src/game/core';
+import { UNIT_COST, levelOf, teamSlots, type RunState, type Unit } from '../server/src/game/core';
 import { ITEMS, RELICS, UNITS } from '../server/src/game/data';
 import { fight, type Frame, type Snap } from '../server/src/game/battle';
 import * as shop from '../server/src/game/shop';
@@ -68,13 +68,13 @@ function describeUnit(u: Unit) {
 
 const header = (st: RunState) =>
   `Round ${st.round} · ${st.gold} gold · ${st.lives} lives · ${st.wins}/10 trophies` +
-  (st.relics.includes('dice') && st.rerolls === 0 ? ' · next reroll free' : '');
+  (shop.rerollCost(st) === 0 ? ' · next reroll free' : '');
 
 function show(s: Save) {
   const st = s.st;
   console.log(`${header(st)}   (save: ${file})`);
   if (st.status !== 'shop') { console.log(st.status === 'won' ? 'VICTORY. The run is over.' : 'Out of lives. The run is over.'); return; }
-  console.log(`Units cost ${UNIT_COST}, items ${shop.itemCost(st)}, a reroll ${REROLL_COST}. Unspent gold does not carry over (unless a relic says so); some abilities count it at the start of battle.`);
+  console.log(`Units cost ${UNIT_COST}, items ${shop.itemCost(st)}, a reroll ${shop.rerollCost(st)}. Unspent gold does not carry over (unless a relic says so); some abilities count it at the start of battle.`);
   if (st.relics.length) console.log(`Relics: ${st.relics.map(r => `${RELICS[r].name} (${RELICS[r].text})`).join('; ')}`);
   if (st.relicChoices.length) {
     console.log(`\nChoose a relic first (relic <n>):`);
@@ -99,7 +99,7 @@ function brief(s: Save, what: string) {
   const st = s.st;
   console.log(`${what}\n${header(st)}`);
   console.log(`  team: ${st.team.map((u, i) => `${i} ${u.kind ? `${nm(u.kind)} ${stats(u)}${levelOf(u.xp) > 1 ? ` L${levelOf(u.xp)}` : ''}${u.item ? ` +${nm(u.item)}` : ''}` : '-'}`).join(' · ')}`);
-  console.log(`  shop: ${st.shop.map((x, i) => `${i} ${x.isItem ? 'item ' : ''}${nm(x.kind)}${x.isItem ? '' : ` ${stats(x)}`}${x.frozen ? ' (frozen)' : ''}`).join(' · ') || '(empty)'}`);
+  console.log(`  shop: ${st.shop.map((x, i) => x.kind ? `${i} ${x.isItem ? 'item ' : ''}${nm(x.kind)}${x.isItem ? '' : ` ${stats(x)}`}${x.frozen ? ' (frozen)' : ''}` : '').filter(Boolean).join(' · ') || '(empty)'}`);
   if (st.relicChoices.length) console.log(`  choose a relic: ${st.relicChoices.map((r, i) => `${i} ${RELICS[r].name}`).join(' · ')}`);
 }
 
