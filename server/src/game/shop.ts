@@ -77,10 +77,15 @@ function levelUpBonus(st: RunState, rng: Rng) {
   const tier = Math.min(5, shopTier(st.round) + 1);
   const pool = UNIT_KINDS.filter(k => UNITS[k].tier === tier);
   const kind = pick(rng, pool);
-  const firstItem = st.shop.findIndex(s => s.isItem);
   const s: ShopSlot = { kind, atk: UNITS[kind].atk, hp: UNITS[kind].hp, frozen: false, isItem: false };
-  st.shop.splice(firstItem < 0 ? st.shop.length : firstItem, 0, s);
+  const free = st.shop.findIndex(x => !x.kind && !x.isItem);
+  const firstItem = st.shop.findIndex(x => x.isItem);
+  if (free >= 0) st.shop[free] = s;
+  else st.shop.splice(firstItem < 0 ? st.shop.length : firstItem, 0, s);
 }
+
+// A bought slot stays on the shelf, empty, so the rest of the market doesn't shift under the player's hand.
+const sold = (s: ShopSlot): ShopSlot => ({ kind: '', atk: 0, hp: 0, frozen: false, isItem: s.isItem });
 
 export function buy(st: RunState, rng: Rng, shopIdx: number, teamIdx: number) {
   assertShop(st);
@@ -95,7 +100,7 @@ export function buy(st: RunState, rng: Rng, shopIdx: number, teamIdx: number) {
     if (!target.kind) throw new Error('Use items on a unit');
     if (s.kind === 'scroll' && target.xp >= 5) throw new Error('Already max level');
     // take it off the shelf first: merging can add a bonus unit to the shop
-    st.shop.splice(shopIdx, 1);
+    st.shop[shopIdx] = sold(s);
     st.gold -= cost;
     if (def.held) target.item = s.kind;
     else if (s.kind === 'scroll') merge(st, rng, target, { atk: target.atk - 1, hp: target.hp - 1, xp: 0, item: '' });
@@ -104,7 +109,7 @@ export function buy(st: RunState, rng: Rng, shopIdx: number, teamIdx: number) {
   }
   if (st.gold < UNIT_COST) throw new Error('Not enough gold');
   if (target.kind && (target.kind !== s.kind || target.xp >= 5)) throw new Error('That slot is taken');
-  st.shop.splice(shopIdx, 1);
+  st.shop[shopIdx] = sold(s);
   st.gold -= UNIT_COST;
   let bought: Unit;
   if (!target.kind) {

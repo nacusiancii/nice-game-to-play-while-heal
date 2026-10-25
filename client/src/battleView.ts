@@ -2,10 +2,11 @@
 import type { Fx, Frame, Snap } from '../../server/src/game/battle';
 import { RELICS } from '../../server/src/game/data';
 import type { Battle } from './module_bindings/types';
-import { floatAt, h, img, sleep } from './dom';
+import { floatAt as floatOver, h, img, sleep } from './dom';
 import { hearts, unitEl, unitInfo } from './pieces';
 import { sfx } from './sfx';
 import { emit } from './events';
+import { beats } from './pace';
 
 const SPEED_KEY = 'rabble-below/speed';
 // 1x, 2x, 4x, or 0 = instant (no replay at all)
@@ -59,11 +60,14 @@ export function playBattle(root: HTMLElement, b: Battle, meta: BattleMeta, onDon
   const els = new Map<number, HTMLElement>();
   const sides = new Map<number, 0 | 1>();
 
+  // The longest line in the whole fight (summons included) sets the spacing, so it always fits on screen
+  // and nobody shuffles over when a skeleton crawls out.
+  const most = Math.max(5, ...frames.map(f => Math.max(f.a.length, f.b.length)));
   function layout(f: Frame) {
     const w = stage.clientWidth;
     const cell = (els.values().next().value?.querySelector('.unit') as HTMLElement | null)?.offsetWidth ?? 96;
-    const gap = Math.min(cell + 26, (w - 120) / 12);
     const cx = w / 2;
+    const gap = Math.min(cell + 26, (cx - 56) / most, (cx - 56 - cell) / (most - 1));
     const place = (snaps: Snap[], side: 0 | 1) => snaps.forEach((s, i) => {
       let el = els.get(s.u);
       if (!el) {
@@ -79,7 +83,7 @@ export function playBattle(root: HTMLElement, b: Battle, meta: BattleMeta, onDon
         stage.append(el);
       }
       snapByUid.set(s.u, s);
-      el.replaceChildren(unitEl({ kind: s.k, atk: s.a, hp: s.h, lvl: s.l, item: s.i, ward: s.w }, side === 0));
+      drawUnit(el, s, side);
       // at 0 hp a unit is already down; it only waits for triggers to resolve before it faints
       el.classList.toggle('down', s.h <= 0);
       const x = side === 0 ? cx - 40 - (i + 1) * gap : cx + 40 + i * gap;
@@ -99,6 +103,25 @@ export function playBattle(root: HTMLElement, b: Battle, meta: BattleMeta, onDon
     }
   }
 
+  // Rebuild a unit only when its look changes (kind, level, item); otherwise just update the numbers.
+  // Re-creating every <img> on every beat made the sprites blink.
+  function drawUnit(el: HTMLElement, s: Snap, side: 0 | 1) {
+    const look = `${s.k}|${s.l}|${s.i ?? ''}`;
+    if (el.dataset.look !== look) {
+      el.dataset.look = look;
+      el.replaceChildren(unitEl({ kind: s.k, atk: s.a, hp: s.h, lvl: s.l, item: s.i, ward: s.w }, side === 0));
+      return;
+    }
+    const u = el.firstElementChild as HTMLElement;
+    const set = (sel: string, v: number) => { const b = u.querySelector(sel); if (b && b.textContent !== String(v)) b.textContent = String(v); };
+    set('.badge.atk', s.a);
+    set('.badge.hp', s.h);
+    let ward = u.querySelector('.badge.ward');
+    if (s.w && !ward) u.append(ward = h('div', { class: 'badge ward' }, s.w));
+    if (!s.w) ward?.remove();
+    else set('.badge.ward', s.w);
+  }
+
   function flash(el: HTMLElement | undefined, cls: string) {
     if (!el) return;
     el.classList.remove(cls);
@@ -108,6 +131,13 @@ export function playBattle(root: HTMLElement, b: Battle, meta: BattleMeta, onDon
 
   function applyFx(fx: Fx[]) {
     let hasHit = false, hasZap = false, hasBuff = false;
+    // one beat can hold several frames: a unit's second and third number float up a moment later
+    const floats = new Map<number, number>();
+    const floatAt = (el: HTMLElement | undefined, text: string, cls: string, uid: number) => {
+      const n = floats.get(uid) ?? 0;
+      floats.set(uid, n + 1);
+      floatOver(el, text, cls, n * 160);
+    };
     for (const e of fx) {
       switch (e.t) {
         case 'atk': {
@@ -118,18 +148,18 @@ export function playBattle(root: HTMLElement, b: Battle, meta: BattleMeta, onDon
         case 'dmg': {
           const el = els.get(e.u);
           flash(el, 'hurt');
-          floatAt(el, `-${e.n}`, 'bad big');
+          floatAt(el, `-${e.n}`, 'bad big', e.u);
           hasHit = true;
           break;
         }
         case 'buff': {
           const parts = [e.a ? `+${e.a}⚔` : '', e.h ? `+${e.h}♥` : ''].filter(Boolean).join(' ');
-          floatAt(els.get(e.u), parts, 'good');
+          floatAt(els.get(e.u), parts, 'good', e.u);
           hasBuff = true;
           break;
         }
-        case 'ward': floatAt(els.get(e.u), `+${e.n} ward`, 'ward'); sfx.ward(); break;
-        case 'heal': floatAt(els.get(e.u), `+${e.n}♥`, 'good'); hasBuff = true; break;
+        case 'ward': floatAt(els.get(e.u), `+${e.n} ward`, 'ward', e.u); sfx.ward(); break;
+        case 'heal': floatAt(els.get(e.u), `+${e.n}♥`, 'good', e.u); hasBuff = true; break;
         case 'die': els.get(e.u)?.classList.add('dying'); sfx.faint(); break;
         case 'sum': els.get(e.u)?.classList.add('summoned'); sfx.summon(); break;
         case 'proc': {
@@ -164,14 +194,6 @@ export function playBattle(root: HTMLElement, b: Battle, meta: BattleMeta, onDon
     if (hasHit) sfx.hit();
     else if (hasZap) sfx.zap();
     else if (hasBuff) sfx.buff();
-  }
-
-  function frameDelay(f: Frame) {
-    if (!f.fx.length) return 100;
-    if (f.fx.some(e => e.t === 'atk')) return 560;
-    if (f.fx.some(e => e.t === 'note')) return 800;
-    if (f.fx.some(e => e.t === 'die')) return 450;
-    return 400;
   }
 
   function showResult() {
@@ -212,16 +234,17 @@ export function playBattle(root: HTMLElement, b: Battle, meta: BattleMeta, onDon
       await opts.resume;
       i0++;
     }
-    for (let i = i0; i < frames.length; i++) {
-      if (skipping) { emit('skip', i); battleNow.frame = frames.length - 1; layout(frames[frames.length - 1]); break; }
-      battleNow.frame = i;
-      emit('beat', { i: i + 1, n: frames.length, fx: frames[i].fx });
-      const f = frames[i];
-      layout(f);
-      applyFx(f.fx);
-      await sleep(frameDelay(f) / speed);
+    for (const bt of beats(frames)) {
+      if (bt.last < i0) continue;
+      if (skipping) { emit('skip', bt.first); battleNow.frame = frames.length - 1; layout(frames[frames.length - 1]); break; }
+      const first = Math.max(bt.first, i0), fx = frames.slice(first, bt.last + 1).flatMap(f => f.fx);
+      battleNow.frame = bt.last;
+      emit('beat', { i: bt.last + 1, n: frames.length, fx });
+      layout(frames[bt.last]);
+      applyFx(fx);
+      await sleep(bt.ms / speed);
     }
-    await sleep(skipping ? 50 : 300);
+    await sleep(skipping ? 50 : 200);
     showResult();
   })();
 

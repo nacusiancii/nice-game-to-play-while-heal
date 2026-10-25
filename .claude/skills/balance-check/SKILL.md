@@ -15,7 +15,7 @@ Two kinds of evidence, used together:
 
 Read the opinions next to the numbers. Neither alone is enough.
 
-Setup once: `cd tools && npm install`.
+The tools install their own deps on first run.
 
 ## 1. Default: two or three playtesters (cheap)
 

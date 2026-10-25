@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 # See a moment of Rabble Below the way a player does. Run `tools/feel/feel help`.
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-[ -d "$DIR/../node_modules" ] || (cd "$DIR/.." && npm install --no-fund --no-audit --silent)
+[ "$DIR/../package-lock.json" -nt "$DIR/../node_modules/.package-lock.json" ] && (cd "$DIR/.." && npm ci --no-fund --no-audit --silent)
 exec "$DIR/../node_modules/.bin/tsx" "$DIR/cli.ts" "$@"

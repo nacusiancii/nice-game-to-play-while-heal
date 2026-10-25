@@ -22,9 +22,10 @@ if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
 fi
 
 mise install --quiet >/dev/null 2>&1 || true
-[ -d server/node_modules ] || (cd server && npm install --no-fund --no-audit)
-[ -d client/node_modules ] || (cd client && npm install --no-fund --no-audit)
-[ -d tools/node_modules ] || (cd tools && npm install --no-fund --no-audit)
+# (Re)install a package's deps when they're missing or older than its lockfile (say, after a pull).
+for d in server client tools; do
+  [ "$d/package-lock.json" -nt "$d/node_modules/.package-lock.json" ] && (cd "$d" && npm ci --no-fund --no-audit --loglevel=error)
+done
 
 # Something already serves :3000? Reuse it only if it is this game's own server.
 running=$(curl -s -o /dev/null http://127.0.0.1:3000/v1/ping && echo yes || true)

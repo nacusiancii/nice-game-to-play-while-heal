@@ -22,6 +22,8 @@ export class ShopView {
   dragging = false;
   pendingRender = false;
   fighting = false;
+  // Costly actions ask twice: the first press arms them, a second one within a few seconds does it.
+  armed: { key: string; until: number } | null = null;
 
   constructor(root: HTMLElement, private hooks: ShopHooks) {
     this.root = root;
@@ -73,10 +75,11 @@ export class ShopView {
     const selShop = this.sel?.from === 'shop' ? r.shop[this.sel.idx] : undefined;
     const selTeam = this.sel?.from === 'team' ? r.team[this.sel.idx] : undefined;
     const freeReroll = r.rerolls === 0 && r.relics.includes('dice');
+    const sure = selTeam?.kind && this.isArmed(`sell:${this.sel!.idx}`);
     const sellBtn = h('button', {
-      class: 'btn sell', 'data-drop': 'sell', disabled: !selTeam?.kind && !this.dragging,
+      class: `btn sell${sure ? ' sure' : ''}`, 'data-drop': 'sell', disabled: !selTeam?.kind && !this.dragging,
       onclick: () => this.sellSelected(),
-    }, selTeam?.kind ? `Sell ${UNITS[selTeam.kind].name} +${sellValue(selTeam)}g` : 'Sell', h('span', { class: 'kbd' }, 'S'));
+    }, selTeam?.kind ? `${sure ? 'Really sell' : 'Sell'} ${UNITS[selTeam.kind].name} +${sellValue(selTeam)}g${sure ? '?' : ''}` : 'Sell', h('span', { class: 'kbd' }, 'S'));
     const controls = h('div', { class: 'controls' },
       h('button', { class: 'btn gold', onclick: () => this.reroll(), disabled: !freeReroll && r.gold < REROLL_COST },
         freeReroll ? 'Reroll (free)' : `Reroll ${REROLL_COST}g`, h('span', { class: 'kbd' }, 'R')),
@@ -198,7 +201,19 @@ export class ShopView {
   }
 
   // ---------- interactions ----------
-  setSel(s: Sel) { this.sel = s; this.render(); }
+  setSel(s: Sel) { this.sel = s; this.armed = null; this.render(); }
+
+  isArmed(key: string) { return !!this.armed && this.armed.key === key && Date.now() < this.armed.until; }
+  // true if the action may go ahead now; otherwise arms it and says why
+  confirm(key: string, why: string) {
+    if (this.isArmed(key)) { this.armed = null; return true; }
+    this.armed = { key, until: Date.now() + 4000 };
+    sfx.error();
+    toast(why);
+    setTimeout(() => { if (this.armed?.key === key && Date.now() >= this.armed.until) { this.armed = null; this.render(); } }, 4100);
+    this.render();
+    return false;
+  }
 
   clickShop(i: number) {
     sfx.click();
@@ -240,6 +255,8 @@ export class ShopView {
     if (r.gold < price) { sfx.error(); toast('Not enough gold.', true); return this.render(); }
     if (s.isItem && !u.kind) { sfx.error(); toast('Drop items onto a unit.', true); return this.render(); }
     if (!s.isItem && u.kind && u.kind !== s.kind) { sfx.error(); toast('That slot is taken. Drop on an empty slot or the same kind.', true); return this.render(); }
+    if (s.isItem && ITEMS[s.kind].held && u.item && u.item !== s.kind &&
+      !this.confirm(`item:${shopIdx}:${teamIdx}`, `${UNITS[u.kind].name} already holds ${ITEMS[u.item].name}. Do that again to swap it out.`)) return;
     if (!s.isItem && u.kind === s.kind) sfx.merge(); else sfx.buy();
     api.buy(shopIdx, teamIdx);
     this.render();
@@ -256,7 +273,11 @@ export class ShopView {
   sellSelected() {
     if (this.sel?.from !== 'team') return;
     const i = this.sel.idx;
-    if (!this.run.team[i].kind) return;
+    const u = this.run.team[i];
+    if (!u.kind) return;
+    // a levelled unit or one holding an item is worth a second press (dragging to Sell is deliberate enough)
+    if ((levelOf(u.xp) > 1 || u.item) && !this.confirm(`sell:${i}`,
+      `Sell ${UNITS[u.kind].name}${u.item ? ` and its ${ITEMS[u.item].name}` : ''} for ${sellValue(u)}g? Press Sell again.`)) return;
     this.sel = null;
     this.sellAt(i);
   }

@@ -99,7 +99,7 @@ function brief(s: Save, what: string) {
   const st = s.st;
   console.log(`${what}\n${header(st)}`);
   console.log(`  team: ${st.team.map((u, i) => `${i} ${u.kind ? `${nm(u.kind)} ${stats(u)}${levelOf(u.xp) > 1 ? ` L${levelOf(u.xp)}` : ''}${u.item ? ` +${nm(u.item)}` : ''}` : '-'}`).join(' · ')}`);
-  console.log(`  shop: ${st.shop.map((x, i) => `${i} ${x.isItem ? 'item ' : ''}${nm(x.kind)}${x.isItem ? '' : ` ${stats(x)}`}${x.frozen ? ' (frozen)' : ''}`).join(' · ') || '(empty)'}`);
+  console.log(`  shop: ${st.shop.map((x, i) => x.kind ? `${i} ${x.isItem ? 'item ' : ''}${nm(x.kind)}${x.isItem ? '' : ` ${stats(x)}`}${x.frozen ? ' (frozen)' : ''}` : '').filter(Boolean).join(' · ') || '(empty)'}`);
   if (st.relicChoices.length) console.log(`  choose a relic: ${st.relicChoices.map((r, i) => `${i} ${RELICS[r].name}`).join(' · ')}`);
 }
 
