@@ -58,6 +58,11 @@ fast, and Sixth Seat gives you room for one more misfit.
   hints, not gospel.
 - **A draw costs nothing.** Both crews walk away embarrassed but alive, like in Super Auto Pets.
   If someone learns to stall for draws, we revisit.
+- **The Ledger reads itself to every newcomer.** A Ledger nobody reads goes stale quietly, and a stale
+  Ledger lies with a straight face. So every new builder is handed this Ledger as it stands upstairs on
+  trunk, not the dusty copy on their own bench, with a note on how far the code has wandered since the
+  last entry. Before they leave, the Market asks them once: are these pages still true?
+  (`.claude/hooks/ledger.py`; run it with `check` to see the same report.)
 
 ## Page 6: Known cracks in the walls
 
